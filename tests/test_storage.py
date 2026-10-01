@@ -1,9 +1,17 @@
 import sqlite3
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from spendguard.models import Expense
-from spendguard.storage import init_db, insert_expense, list_expenses
+from spendguard.storage import (
+    append_to_sheet,
+    get_expense,
+    init_db,
+    insert_expense,
+    list_expenses,
+    update_status,
+)
 
 
 @pytest.fixture
@@ -52,3 +60,47 @@ def test_list_expenses_filters_by_supplier(conn):
     matches = list_expenses(conn, supplier="Al-Nasr Sand Co")
 
     assert [e.supplier for e in matches] == ["Al-Nasr Sand Co"]
+
+
+def test_get_expense_found(conn):
+    expense_id = insert_expense(conn, Expense(supplier="A"))
+
+    found = get_expense(conn, expense_id)
+
+    assert found is not None
+    assert found.id == expense_id
+
+
+def test_get_expense_not_found(conn):
+    assert get_expense(conn, 999) is None
+
+
+def test_update_status_to_approved(conn):
+    expense_id = insert_expense(conn, Expense(supplier="A"))
+
+    update_status(conn, expense_id, "approved")
+
+    assert get_expense(conn, expense_id).status == "approved"
+
+
+def test_update_status_to_rejected_records_reason(conn):
+    expense_id = insert_expense(conn, Expense(supplier="A"))
+
+    update_status(conn, expense_id, "rejected", rejection_reason="duplicate")
+    expense = get_expense(conn, expense_id)
+
+    assert expense.status == "rejected"
+    assert expense.rejection_reason == "duplicate"
+
+
+def test_append_to_sheet_writes_expected_row():
+    expense = Expense(id=1, date="2026-09-30", amount=1200.0, supplier="Al-Nasr Sand Co", status="approved")
+    mock_worksheet = MagicMock()
+
+    with patch("spendguard.storage._worksheet", return_value=mock_worksheet):
+        append_to_sheet(expense)
+
+    mock_worksheet.append_row.assert_called_once()
+    row = mock_worksheet.append_row.call_args[0][0]
+    assert row[0] == "1"
+    assert "Al-Nasr Sand Co" in row

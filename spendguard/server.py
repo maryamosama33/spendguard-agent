@@ -4,7 +4,15 @@ from spendguard.checks import check_price_anomaly as _check_price_anomaly
 from spendguard.checks import find_duplicate
 from spendguard.extraction import extract_expense as _extract_expense
 from spendguard.models import Expense
-from spendguard.storage import get_connection, init_db, insert_expense, list_expenses
+from spendguard.storage import (
+    append_to_sheet,
+    get_connection,
+    get_expense,
+    init_db,
+    insert_expense,
+    list_expenses,
+    update_status,
+)
 
 mcp = MCPServer("spendguard")
 
@@ -78,6 +86,54 @@ def save_expense(expense: dict) -> dict:
         conn.close()
 
     return candidate.model_dump()
+
+
+def _require_expense(conn, expense_id: int) -> Expense:
+    expense = get_expense(conn, expense_id)
+    if expense is None:
+        raise ValueError(f"No expense with id {expense_id}")
+    return expense
+
+
+@mcp.tool()
+def approve_expense(expense_id: int) -> dict:
+    """Approve a pending expense: marks it approved and writes the row to Google Sheets.
+
+    Args:
+        expense_id: the id returned by save_expense.
+    """
+    conn = get_connection()
+    try:
+        init_db(conn)
+        expense = _require_expense(conn, expense_id)
+        update_status(conn, expense_id, "approved")
+    finally:
+        conn.close()
+
+    expense.status = "approved"
+    append_to_sheet(expense)
+    return expense.model_dump()
+
+
+@mcp.tool()
+def reject_expense(expense_id: int, reason: str) -> dict:
+    """Reject a pending expense and record the reason. Never writes to Sheets.
+
+    Args:
+        expense_id: the id returned by save_expense.
+        reason: why it was rejected.
+    """
+    conn = get_connection()
+    try:
+        init_db(conn)
+        expense = _require_expense(conn, expense_id)
+        update_status(conn, expense_id, "rejected", rejection_reason=reason)
+    finally:
+        conn.close()
+
+    expense.status = "rejected"
+    expense.rejection_reason = reason
+    return expense.model_dump()
 
 
 if __name__ == "__main__":

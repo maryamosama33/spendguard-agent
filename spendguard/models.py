@@ -24,4 +24,5 @@ class Expense(ExtractedFields):
     sender: str | None = None
     source_file: str | None = None
     status: str = "pending"  # pending | approved | rejected
+    rejection_reason: str | None = None
     id: int | None = None
