@@ -46,7 +46,7 @@ def _mime_type_for(path: Path) -> str:
 def _request_fields(path: Path, mime_type: str) -> ExtractedFields:
     file_part = types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type)
     response = _client().models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=[file_part, EXTRACTION_PROMPT],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
