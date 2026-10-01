@@ -82,6 +82,9 @@ extract_expense, check_duplicate, check_price_anomaly, save_expense
 - Run server: `python -m spendguard.server`
 - Inspect tools: `mcp dev spendguard/server.py`
 - Tests: `pytest`
+- Seed demo data: `python -m spendguard.seed` (loads data/seed/price_history.json
+  as approved historical expenses; skips if the DB already has data, pass
+  `--force` to reseed)
 
 ## Rules
 
