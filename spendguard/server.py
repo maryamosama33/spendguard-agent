@@ -4,7 +4,7 @@ from spendguard.checks import check_price_anomaly as _check_price_anomaly
 from spendguard.checks import find_duplicate
 from spendguard.extraction import extract_expense as _extract_expense
 from spendguard.models import Expense
-from spendguard.storage import get_connection, init_db, list_expenses
+from spendguard.storage import get_connection, init_db, insert_expense, list_expenses
 
 mcp = MCPServer("spendguard")
 
@@ -59,6 +59,25 @@ def check_price_anomaly(expense: dict) -> dict:
         conn.close()
 
     return _check_price_anomaly(candidate, history)
+
+
+@mcp.tool()
+def save_expense(expense: dict) -> dict:
+    """Save an expense as pending, awaiting owner approval. Never writes to Sheets.
+
+    Args:
+        expense: an expense dict, e.g. the output of extract_expense.
+    """
+    candidate = Expense(**expense)
+    candidate.status = "pending"
+    conn = get_connection()
+    try:
+        init_db(conn)
+        candidate.id = insert_expense(conn, candidate)
+    finally:
+        conn.close()
+
+    return candidate.model_dump()
 
 
 if __name__ == "__main__":
