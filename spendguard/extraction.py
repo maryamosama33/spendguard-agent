@@ -20,6 +20,9 @@ Extract these fields:
 - supplier (company or person who was paid)
 - project (the project/site this expense is for, if mentioned)
 - cost_item (one of: materials, labor, transport, subcontractor)
+- item (the specific thing paid for, e.g. "steel rebar 12mm", "sand",
+  "cement"; use a short normalized name so the same item is named
+  consistently across purchases)
 - requester (who is submitting/requesting this expense)
 - invoice_number (if present)
 

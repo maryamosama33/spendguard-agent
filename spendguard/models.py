@@ -10,6 +10,7 @@ class ExtractedFields(BaseModel):
     supplier: str | None = None
     project: str | None = None
     cost_item: str | None = None  # materials | labor | transport | subcontractor
+    item: str | None = None  # specific line item, e.g. "steel rebar 12mm", "sand"
     requester: str | None = None
     invoice_number: str | None = None
     confidence: float = 0.0

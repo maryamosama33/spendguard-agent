@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     supplier TEXT,
     project TEXT,
     cost_item TEXT,
+    item TEXT,
     requester TEXT,
     invoice_number TEXT,
     confidence REAL,
@@ -54,12 +55,25 @@ def insert_expense(conn: sqlite3.Connection, expense: Expense) -> int:
     return cursor.lastrowid
 
 
-def list_expenses(conn: sqlite3.Connection, statuses: list[str] | None = None) -> list[Expense]:
+def _expenses_query(statuses: list[str] | None, supplier: str | None) -> tuple[str, list]:
+    clauses, params = [], []
     if statuses:
-        placeholders = ", ".join("?" for _ in statuses)
-        rows = conn.execute(
-            f"SELECT * FROM expenses WHERE status IN ({placeholders})", statuses
-        ).fetchall()
-    else:
-        rows = conn.execute("SELECT * FROM expenses").fetchall()
+        clauses.append(f"status IN ({', '.join('?' for _ in statuses)})")
+        params.extend(statuses)
+    if supplier:
+        clauses.append("supplier = ?")
+        params.append(supplier)
+    query = "SELECT * FROM expenses"
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    return query, params
+
+
+def list_expenses(
+    conn: sqlite3.Connection,
+    statuses: list[str] | None = None,
+    supplier: str | None = None,
+) -> list[Expense]:
+    query, params = _expenses_query(statuses, supplier)
+    rows = conn.execute(query, params).fetchall()
     return [_row_to_expense(row) for row in rows]

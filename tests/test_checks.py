@@ -1,4 +1,4 @@
-from spendguard.checks import find_duplicate
+from spendguard.checks import check_price_anomaly, find_duplicate
 from spendguard.models import Expense
 
 
@@ -50,3 +50,67 @@ def test_no_match_against_empty_history():
     candidate = _expense()
 
     assert find_duplicate(candidate, []) is None
+
+
+def _history_entry(amount: float, date: str, item: str = "steel", supplier: str = "Al-Nasr Sand Co") -> Expense:
+    return _expense(amount=amount, date=date, item=item, supplier=supplier)
+
+
+def test_price_anomaly_flagged_when_above_threshold():
+    candidate = _expense(amount=1200.0, item="steel", date="2026-09-30")
+    history = [
+        _history_entry(1000.0, "2026-09-01"),
+        _history_entry(1000.0, "2026-09-10"),
+        _history_entry(1000.0, "2026-09-20"),
+    ]
+
+    result = check_price_anomaly(candidate, history)
+
+    assert result["is_anomaly"] is True
+    assert result["average_price"] == 1000.0
+    assert result["compared_count"] == 3
+
+
+def test_price_not_anomalous_within_threshold():
+    candidate = _expense(amount=1050.0, item="steel", date="2026-09-30")
+    history = [_history_entry(1000.0, "2026-09-01")]
+
+    result = check_price_anomaly(candidate, history)
+
+    assert result["is_anomaly"] is False
+
+
+def test_price_anomaly_only_uses_recent_window():
+    candidate = _expense(amount=1100.0, item="steel", date="2026-09-30")
+    history = [
+        _history_entry(2000.0, "2026-01-01"),  # old, outside window of 3
+        _history_entry(1000.0, "2026-09-01"),
+        _history_entry(1000.0, "2026-09-10"),
+        _history_entry(1000.0, "2026-09-20"),
+    ]
+
+    result = check_price_anomaly(candidate, history)
+
+    assert result["average_price"] == 1000.0
+
+
+def test_price_anomaly_ignores_different_item_or_supplier():
+    candidate = _expense(amount=5000.0, item="steel", supplier="Al-Nasr Sand Co")
+    history = [
+        _history_entry(100.0, "2026-09-01", item="cement"),
+        _history_entry(100.0, "2026-09-01", supplier="Other Co"),
+    ]
+
+    result = check_price_anomaly(candidate, history)
+
+    assert result["compared_count"] == 0
+    assert result["is_anomaly"] is False
+
+
+def test_price_anomaly_no_history_is_not_anomalous():
+    candidate = _expense(amount=5000.0, item="steel")
+
+    result = check_price_anomaly(candidate, [])
+
+    assert result["is_anomaly"] is False
+    assert result["average_price"] is None

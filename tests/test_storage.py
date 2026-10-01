@@ -43,3 +43,12 @@ def test_list_expenses_filters_by_status(conn):
 
 def test_list_expenses_empty_db_returns_empty_list(conn):
     assert list_expenses(conn) == []
+
+
+def test_list_expenses_filters_by_supplier(conn):
+    insert_expense(conn, Expense(supplier="Al-Nasr Sand Co"))
+    insert_expense(conn, Expense(supplier="Other Co"))
+
+    matches = list_expenses(conn, supplier="Al-Nasr Sand Co")
+
+    assert [e.supplier for e in matches] == ["Al-Nasr Sand Co"]

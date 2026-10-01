@@ -1,5 +1,6 @@
 from mcp.server.mcpserver import MCPServer
 
+from spendguard.checks import check_price_anomaly as _check_price_anomaly
 from spendguard.checks import find_duplicate
 from spendguard.extraction import extract_expense as _extract_expense
 from spendguard.models import Expense
@@ -40,6 +41,24 @@ def check_duplicate(expense: dict) -> dict:
         "is_duplicate": duplicate is not None,
         "matched_expense": duplicate.model_dump() if duplicate else None,
     }
+
+
+@mcp.tool()
+def check_price_anomaly(expense: dict) -> dict:
+    """Flag if the price is abnormally high vs. recent purchases of the same item/supplier.
+
+    Args:
+        expense: an expense dict, e.g. the output of extract_expense.
+    """
+    candidate = Expense(**expense)
+    conn = get_connection()
+    try:
+        init_db(conn)
+        history = list_expenses(conn, statuses=["approved"], supplier=candidate.supplier)
+    finally:
+        conn.close()
+
+    return _check_price_anomaly(candidate, history)
 
 
 if __name__ == "__main__":
