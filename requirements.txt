@@ -1,0 +1,7 @@
+mcp[cli]
+google-genai
+pydantic
+python-dotenv
+gspread
+google-auth
+pytest
