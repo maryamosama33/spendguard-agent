@@ -4,6 +4,7 @@ from spendguard.checks import check_price_anomaly as _check_price_anomaly
 from spendguard.checks import find_duplicate
 from spendguard.extraction import extract_expense as _extract_expense
 from spendguard.models import Expense
+from spendguard.query import filter_expenses, summarize
 from spendguard.storage import (
     append_to_sheet,
     get_connection,
@@ -134,6 +135,45 @@ def reject_expense(expense_id: int, reason: str) -> dict:
     expense.status = "rejected"
     expense.rejection_reason = reason
     return expense.model_dump()
+
+
+@mcp.tool()
+def query_expenses(
+    project: str | None = None,
+    supplier: str | None = None,
+    cost_item: str | None = None,
+    item: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    status: str = "approved",
+) -> dict:
+    """Answer spending questions: total, count, and per-cost-item breakdown.
+
+    Args:
+        project, supplier, cost_item, item: optional exact-match filters
+            (case-insensitive).
+        date_from, date_to: optional ISO (YYYY-MM-DD) date bounds, inclusive.
+        status: which expenses to include, default "approved" (actual spend).
+    """
+    conn = get_connection()
+    try:
+        init_db(conn)
+        candidates = list_expenses(conn, statuses=[status])
+    finally:
+        conn.close()
+
+    matches = filter_expenses(
+        candidates,
+        project=project,
+        supplier=supplier,
+        cost_item=cost_item,
+        item=item,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    summary = summarize(matches)
+    summary["expenses"] = [e.model_dump() for e in matches]
+    return summary
 
 
 if __name__ == "__main__":
