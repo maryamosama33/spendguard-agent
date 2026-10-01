@@ -1,0 +1,19 @@
+# SpendGuard MCP server entry for Hermes.
+#
+# Merge this into your Hermes config.yaml's mcp_servers: section (create the
+# section if it doesn't exist yet). Adjust the absolute paths below to match
+# where you cloned this repo.
+#
+# PYTHONPATH is required: Hermes spawns this as a subprocess without setting
+# a working directory, so `python -m spendguard.server` can only find the
+# spendguard package if the repo root is on sys.path via PYTHONPATH. The
+# server loads its own .env (GEMINI_API_KEY, GOOGLE_SERVICE_ACCOUNT_FILE,
+# GOOGLE_SHEET_ID) by absolute path at startup -- no secrets need to live in
+# this file.
+
+mcp_servers:
+  spendguard:
+    command: "C:\\Users\\user\\Desktop\\spendguard-agent\\venv\\Scripts\\python.exe"
+    args: ["-m", "spendguard.server"]
+    env:
+      PYTHONPATH: "C:\\Users\\user\\Desktop\\spendguard-agent"

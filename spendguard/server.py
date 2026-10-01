@@ -1,3 +1,7 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from mcp.server.mcpserver import MCPServer
 
 from spendguard.checks import check_price_anomaly as _check_price_anomaly
@@ -14,6 +18,20 @@ from spendguard.storage import (
     list_expenses,
     update_status,
 )
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _load_env() -> None:
+    """Load .env by absolute path and resolve a relative service-account path,
+    since this process is spawned by Hermes with an unknown working directory."""
+    load_dotenv(REPO_ROOT / ".env")
+    creds_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
+    if creds_path and not Path(creds_path).is_absolute():
+        os.environ["GOOGLE_SERVICE_ACCOUNT_FILE"] = str(REPO_ROOT / creds_path)
+
+
+_load_env()
 
 mcp = MCPServer("spendguard")
 
