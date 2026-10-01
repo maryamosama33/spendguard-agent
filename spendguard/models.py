@@ -22,3 +22,5 @@ class Expense(ExtractedFields):
     source_channel: str | None = None  # whatsapp | email
     sender: str | None = None
     source_file: str | None = None
+    status: str = "pending"  # pending | approved | rejected
+    id: int | None = None
