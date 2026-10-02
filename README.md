@@ -6,7 +6,8 @@ Site engineers send expense requests the way they already do: a photo of a
 handwritten Arabic form, a supplier PDF, or a voice note. SpendGuard reads it,
 asks for anything missing, flags duplicates and abnormal supplier prices, and
 asks the owner to approve. Approved expenses are logged (SQLite, mirrored to
-Google Sheets). The owner can also ask "صرفنا كام على مشروع كذا الشهر ده؟".
+Google Sheets). The owner can also ask spending questions such as "how much
+did we spend on project X this month?". All replies are in Egyptian Arabic.
 
 First pilot: an Egyptian construction company. Built for the "Agents at Work"
 hackathon.
@@ -15,11 +16,11 @@ hackathon.
 
 | Document | What SpendGuard does |
 |---|---|
-| `steel_invoice_overpriced.pdf` | ⚠️ "السعر أعلى بـ 20% من متوسط آخر 3 مرات" → owner decides |
-| `sand_transport_form.png` (handwritten) | Reads the handwriting, asks "بس ناقص: المشروع" |
-| `cement_invoice_resubmitted.png` | ⚠️ "الفاتورة دي اتقدمت قبل كده: SC-1140" (sent by someone else) |
-| `blurry_receipt.png` | "الصورة مش واضحة… ممكن تصورها تاني؟" instead of guessing numbers |
-| Voice note "دفعت 3000 جنيه نقل رمل…" | Transcribes, asks for date/name, ⚠️ +264% over the usual price |
+| `steel_invoice_overpriced.pdf` | ⚠️ Price is 20% above the average of the last 3 purchases → owner decides |
+| `sand_transport_form.png` (handwritten) | Reads the handwriting, asks the sender which project it is for |
+| `cement_invoice_resubmitted.png` | ⚠️ Invoice SC-1140 was already submitted (now sent by someone else) |
+| `blurry_receipt.png` | Asks for a clearer photo instead of guessing the numbers |
+| Voice note: "I paid 3000 EGP for sand transport…" | Transcribes it, asks for the date and name, ⚠️ +264% over the usual price |
 
 Only the owner can approve or reject. Every reply is ready-made Egyptian Arabic.
 
@@ -49,8 +50,8 @@ python scripts/spendguard.py chat      # talk to the agent in the terminal
 Try (one person plays both the site engineer and the owner):
 
 ```text
-رسالة جديدة على الإيميل من sales@nsf-steel.example ومعاها فاتورة مرفقة: <full path>\data\seed\invoices\steel_invoice_overpriced.pdf
-ارفضه، السعر عالي
+New email from sales@nsf-steel.example with an attached invoice: <full path>\data\seed\invoices\steel_invoice_overpriced.pdf
+Reject it, the price is too high
 ```
 
 Replies take 20-90 s on the free tiers. `python scripts/spendguard.py reset`
@@ -70,7 +71,8 @@ Someone new? They message the bot, get a pairing code, and you run
 
 ### Google Sheets (optional)
 
-Without it, approvals are stored in SQLite and the reply says "اتسجل في السيستم".
+Without it, approvals are stored in SQLite only, and the reply says the
+expense was recorded in the system rather than in the Sheet.
 To mirror approved rows to a Sheet, set `GOOGLE_SERVICE_ACCOUNT_FILE` (a
 service-account JSON) and `GOOGLE_SHEET_ID`, and share the Sheet with the
 service account's email.
@@ -98,7 +100,8 @@ flowchart LR
 Guarantees live in code, not in the prompt, because chat models drift:
 
 - **The owner decides.** `approve_expense` / `reject_expense` need the owner's
-  own reply ("موافق" / "مرفوض") and only act on pending expenses. The Hermes
+  own explicit reply (approve / reject, in Arabic or English) and only act on
+  pending expenses. The Hermes
   plugin also blocks a decision in the same turn an expense arrives.
 - **Never guess.** Missing fields go back to the sender as a question; blurry
   photos are re-requested; `save_expense` refuses incomplete expenses.
