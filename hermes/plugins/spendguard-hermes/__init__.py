@@ -2,8 +2,10 @@
 
 1. The owner decides. approve_expense / reject_expense are blocked in any
    turn that also received an expense (extract_expense[_from_text] or
-   save_expense), so
-   an approval or rejection can only come from a later message: the owner's.
+   save_expense), so an approval or rejection can only come from a later
+   message; and, when SPENDGUARD_OWNER_IDS is set, only if that message's
+   sender is an owner (others get NOT_OWNER_REPLY). Turns without a sender ID
+   (the terminal demo) are not restricted by sender.
 2. Exact replies. SpendGuard tools put the message for the user in
    "reply_to_sender", "reply_to_owner" or "reply". Chat models tend to wrap it
    in their own (formal, sometimes English) report, so the last such text seen
@@ -11,6 +13,7 @@
 """
 
 import json
+import os
 import threading
 from typing import Any
 
@@ -26,9 +29,26 @@ BLOCK_MESSAGE = (
     "save_expense reply_to_owner as your reply and end your turn."
 )
 
+NOT_OWNER_MESSAGE = (
+    "Blocked: this sender is not the owner, so they cannot approve or reject. "
+    "End your turn; the user is told only the owner decides."
+)
+NOT_OWNER_REPLY = "الموافقة والرفض لصاحب الشركة بس. الطلب متسجل ومستني قراره."
+
 _intake_turns: set[tuple[str, str]] = set()
+_turn_senders: dict[tuple[str, str], str] = {}
 _pending_replies: dict[tuple[str, str], str] = {}
 _lock = threading.Lock()
+
+
+def owner_ids() -> set[str]:
+    raw = os.environ.get("SPENDGUARD_OWNER_IDS", "")
+    return {part.strip() for part in raw.split(",") if part.strip()}
+
+
+def _is_non_owner(sender: str) -> bool:
+    owners = owner_ids()
+    return bool(owners) and bool(sender) and sender not in owners
 
 
 def _as_data(value: Any) -> Any:
@@ -59,6 +79,13 @@ def find_reply(result: Any) -> str | None:
     return None
 
 
+def on_pre_llm_call(session_id: str = "", turn_id: str = "", sender_id: Any = "",
+                    **_: Any) -> None:
+    """Remember who sent this turn's message (empty in the terminal)."""
+    with _lock:
+        _turn_senders[(session_id, turn_id)] = str(sender_id or "")
+
+
 def on_pre_tool_call(tool_name: str = "", session_id: str = "", turn_id: str = "",
                      **_: Any) -> dict | None:
     key = (session_id, turn_id)
@@ -67,6 +94,9 @@ def on_pre_tool_call(tool_name: str = "", session_id: str = "", turn_id: str = "
             _intake_turns.add(key)
         elif tool_name in DECISION_TOOLS and key in _intake_turns:
             return {"action": "block", "message": BLOCK_MESSAGE}
+        elif tool_name in DECISION_TOOLS and _is_non_owner(_turn_senders.get(key, "")):
+            _pending_replies[key] = NOT_OWNER_REPLY
+            return {"action": "block", "message": NOT_OWNER_MESSAGE}
     return None
 
 
@@ -85,10 +115,12 @@ def on_transform_llm_output(response_text: str = "", session_id: str = "",
     key = (session_id, turn_id)
     with _lock:
         _intake_turns.discard(key)
+        _turn_senders.pop(key, None)
         return _pending_replies.pop(key, None)
 
 
 def register(ctx) -> None:
+    ctx.register_hook("pre_llm_call", on_pre_llm_call)
     ctx.register_hook("pre_tool_call", on_pre_tool_call)
     ctx.register_hook("post_tool_call", on_post_tool_call)
     ctx.register_hook("transform_llm_output", on_transform_llm_output)

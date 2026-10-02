@@ -61,6 +61,41 @@ def test_owner_decision_in_later_turn_allowed(plugin):
     assert plugin.on_transform_llm_output("x", session_id="s1", turn_id="t2") == "اتعتمد"
 
 
+def _turn(plugin, turn, sender, session="s1"):
+    plugin.on_pre_llm_call(session_id=session, turn_id=turn, sender_id=sender)
+
+
+def test_non_owner_cannot_approve(plugin, monkeypatch):
+    monkeypatch.setenv("SPENDGUARD_OWNER_IDS", "1386120774")
+    _turn(plugin, "t1", "555")
+
+    blocked = _call(plugin, APPROVE, "t1")
+
+    assert blocked["action"] == "block"
+    assert plugin.on_transform_llm_output("ok", session_id="s1", turn_id="t1") == plugin.NOT_OWNER_REPLY
+
+
+def test_owner_can_approve(plugin, monkeypatch):
+    monkeypatch.setenv("SPENDGUARD_OWNER_IDS", "1386120774, 42")
+    _turn(plugin, "t1", 42)  # Hermes may pass the ID as an int
+
+    assert _call(plugin, APPROVE, "t1", {"reply": "اتعتمد"}) is None
+
+
+def test_terminal_turn_without_sender_not_restricted(plugin, monkeypatch):
+    monkeypatch.setenv("SPENDGUARD_OWNER_IDS", "1386120774")
+    _turn(plugin, "t1", "")
+
+    assert _call(plugin, REJECT, "t1") is None
+
+
+def test_no_owner_list_means_no_sender_restriction(plugin, monkeypatch):
+    monkeypatch.delenv("SPENDGUARD_OWNER_IDS", raising=False)
+    _turn(plugin, "t1", "555")
+
+    assert _call(plugin, APPROVE, "t1") is None
+
+
 def test_other_session_not_blocked(plugin):
     _call(plugin, SAVE, "t1", session="engineer-chat")
 

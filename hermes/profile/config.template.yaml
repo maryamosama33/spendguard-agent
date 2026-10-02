@@ -78,7 +78,8 @@ mcp_servers:
       resources: false
       prompts: false
 
-# Only SpendGuard's 7 tools (F26): no terminal/file/web/browser built-ins. An
+{{GATEWAY_ADMINS}}
+# Only SpendGuard's tools (F26): no terminal/file/web/browser built-ins. An
 # empty list leaves just the MCP server's tools. Equivalent:
 #   hermes tools disable --platform cli web browser terminal file code_execution \
 #     vision image_gen tts skills todo memory session_search connections clarify \

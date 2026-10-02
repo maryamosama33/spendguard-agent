@@ -60,8 +60,10 @@ restores the demo data between runs.
 ### Telegram bot (optional)
 
 1. In Telegram, message **@BotFather** → `/newbot`; put the token in `.env` as `TELEGRAM_BOT_TOKEN`.
-2. Put your numeric Telegram user ID in `TELEGRAM_ALLOWED_USERS` (and `TELEGRAM_HOME_CHANNEL`).
-   Not sure of it? Message @userinfobot.
+2. Put your numeric Telegram user ID in `TELEGRAM_ALLOWED_USERS`, `TELEGRAM_HOME_CHANNEL`
+   and `SPENDGUARD_OWNER_IDS`. Not sure of it? Message @userinfobot.
+   Owners are the only ones who can approve/reject and use the bot's `/` commands;
+   other allowed users (site engineers) can submit expenses and ask questions.
 3. `python scripts/spendguard.py setup` again, then `python scripts/spendguard.py bot`
    and keep that window open.
 4. Send the bot an invoice photo, PDF or voice note.
@@ -101,7 +103,8 @@ Guarantees live in code, not in the prompt, because chat models drift:
 
 - **The owner decides.** `approve_expense` / `reject_expense` need the owner's
   own explicit reply (approve / reject, in Arabic or English) and only act on
-  pending expenses. The Hermes
+  pending expenses. On Telegram, only senders in `SPENDGUARD_OWNER_IDS` may
+  decide. The Hermes
   plugin also blocks a decision in the same turn an expense arrives.
 - **Never guess.** Missing fields go back to the sender as a question; blurry
   photos are re-requested; `save_expense` refuses incomplete expenses.

@@ -10,6 +10,7 @@ Run it with the repo's venv Python: Hermes starts the SpendGuard MCP server
 with this same interpreter.
 """
 
+import json
 import shutil
 import subprocess
 import sys
@@ -22,7 +23,18 @@ PROFILE_SRC = REPO_ROOT / "hermes" / "profile"
 PLUGIN_SRC = REPO_ROOT / "hermes" / "plugins" / "spendguard-hermes"
 SOUL_SRC = REPO_ROOT / "hermes" / "SOUL.md"
 # Copied from the repo .env into the profile's .env (values never printed).
-HERMES_KEYS = ["GROQ_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS", "TELEGRAM_HOME_CHANNEL"]
+HERMES_KEYS = ["GROQ_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS",
+               "TELEGRAM_HOME_CHANNEL", "SPENDGUARD_OWNER_IDS"]
+
+GATEWAY_ADMINS_TEMPLATE = """# Owners (SPENDGUARD_OWNER_IDS) get every slash command; other allowed users
+# only /help and /whoami (F26). Approving/rejecting is owner-only too (plugin).
+gateway:
+  platforms:
+    telegram:
+      extra:
+        allow_admin_from: {ids}
+        group_allow_admin_from: {ids}
+"""
 
 
 def _hermes(*args: str, cwd: Path | None = None, capture: bool = False) -> subprocess.CompletedProcess:
@@ -33,10 +45,22 @@ def _hermes(*args: str, cwd: Path | None = None, capture: bool = False) -> subpr
                           errors="replace", capture_output=capture)
 
 
+def _owner_ids() -> list[str]:
+    raw = _read_env(REPO_ROOT / ".env").get("SPENDGUARD_OWNER_IDS", "")
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _gateway_admins_block() -> str:
+    """Hermes admin list for Telegram; omitted when no owners are set (no gating)."""
+    ids = _owner_ids()
+    return GATEWAY_ADMINS_TEMPLATE.format(ids=json.dumps(ids)) if ids else ""
+
+
 def _render_config() -> str:
     template = (PROFILE_SRC / "config.template.yaml").read_text(encoding="utf-8")
     return (template.replace("{{PYTHON}}", Path(sys.executable).as_posix())
-                    .replace("{{REPO_ROOT}}", REPO_ROOT.as_posix()))
+                    .replace("{{REPO_ROOT}}", REPO_ROOT.as_posix())
+                    .replace("{{GATEWAY_ADMINS}}", _gateway_admins_block()))
 
 
 def _stage_profile(stage: Path) -> None:
@@ -91,6 +115,9 @@ def setup() -> None:
     print(f"\nSpendGuard profile installed. Keys copied: {', '.join(copied) or 'none'}")
     if missing:
         print(f"Missing in .env: {', '.join(missing)} (required).")
+    owners = _owner_ids()
+    print(f"Owners (approve/reject + all /commands): {', '.join(owners)}" if owners else
+          "No SPENDGUARD_OWNER_IDS set: any allowed user can approve and use /commands.")
     print("Next: python scripts/spendguard.py chat   (or: bot, for Telegram)")
 
 
