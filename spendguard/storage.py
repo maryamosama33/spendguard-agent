@@ -90,6 +90,25 @@ def list_expenses(
     return [_row_to_expense(row) for row in rows]
 
 
+KNOWN_VALUE_COLUMNS = {"item", "supplier", "project"}
+
+
+def list_known_values(conn: sqlite3.Connection, column: str) -> list[str]:
+    """Distinct values of item/supplier/project in approved history."""
+    if column not in KNOWN_VALUE_COLUMNS:
+        raise ValueError(f"Unsupported column: {column}")
+    rows = conn.execute(
+        f"SELECT DISTINCT {column} FROM expenses "
+        f"WHERE status = 'approved' AND {column} IS NOT NULL ORDER BY {column}"
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
+def list_item_names(conn: sqlite3.Connection) -> list[str]:
+    """Distinct item names in approved history, so extraction can reuse them."""
+    return list_known_values(conn, "item")
+
+
 def clear_expenses(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM expenses")
     conn.commit()

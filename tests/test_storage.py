@@ -10,6 +10,7 @@ from spendguard.storage import (
     init_db,
     insert_expense,
     list_expenses,
+    list_item_names,
     update_status,
 )
 
@@ -60,6 +61,14 @@ def test_list_expenses_filters_by_supplier(conn):
     matches = list_expenses(conn, supplier="Al-Nasr Sand Co")
 
     assert [e.supplier for e in matches] == ["Al-Nasr Sand Co"]
+
+
+def test_list_item_names_distinct_from_approved_only(conn):
+    for item, status in [("cement", "approved"), ("cement", "approved"),
+                         ("sand transport", "approved"), ("بلاط", "pending"), (None, "approved")]:
+        insert_expense(conn, Expense(item=item, status=status))
+
+    assert list_item_names(conn) == ["cement", "sand transport"]
 
 
 def test_get_expense_found(conn):

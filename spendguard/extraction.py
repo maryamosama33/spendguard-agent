@@ -1,4 +1,5 @@
 import mimetypes
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 
@@ -70,14 +71,28 @@ Request text:
 """
 
 
-def _ask_gemini(content: types.Part | str) -> ExtractedFields:
+KNOWN_ITEMS_HINT = """
+Items already in the price history: {items}.
+If the item paid for is one of these (in any language or wording, e.g.
+"نقل رمل" is "sand transport"), set "item" to that exact name, so its price
+can be compared with past purchases. Otherwise use a new short English name.
+"""
+
+
+def _prompt(known_items: Sequence[str]) -> str:
+    if not known_items:
+        return EXTRACTION_PROMPT
+    return EXTRACTION_PROMPT + KNOWN_ITEMS_HINT.format(items=", ".join(f'"{i}"' for i in known_items))
+
+
+def _ask_gemini(content: types.Part | str, known_items: Sequence[str] = ()) -> ExtractedFields:
     # Keep the client referenced: if it is garbage-collected mid-call, google-genai
     # closes its HTTP client and the request fails with "client has been closed".
     client = _client()
     _gemini_limiter.acquire()
     response = client.models.generate_content(
         model=GEMINI_MODEL,
-        contents=[content, EXTRACTION_PROMPT],
+        contents=[content, _prompt(known_items)],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=ExtractedFields,
@@ -86,18 +101,20 @@ def _ask_gemini(content: types.Part | str) -> ExtractedFields:
     return response.parsed
 
 
-def _request_fields(path: Path, mime_type: str) -> ExtractedFields:
-    return _ask_gemini(types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type))
+def _request_fields(path: Path, mime_type: str, known_items: Sequence[str] = ()) -> ExtractedFields:
+    return _ask_gemini(types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type), known_items)
 
 
 def find_missing_fields(fields: ExtractedFields) -> list[str]:
     return [f for f in REQUIRED_FIELDS if getattr(fields, f) in (None, "")]
 
 
-def extract_expense(file_path: str, source_channel: str, sender: str) -> Expense:
+def extract_expense(
+    file_path: str, source_channel: str, sender: str, known_items: Sequence[str] = ()
+) -> Expense:
     """Extract structured expense fields from a photo, PDF, or scanned form."""
     path = Path(file_path)
-    fields = _request_fields(path, _mime_type_for(path))
+    fields = _request_fields(path, _mime_type_for(path), known_items)
     return Expense(
         **fields.model_dump(),
         missing_fields=find_missing_fields(fields),
@@ -108,11 +125,12 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> Expense
 
 
 def extract_expense_from_text(
-    text: str, source_channel: str, sender: str, today: date | None = None
+    text: str, source_channel: str, sender: str,
+    known_items: Sequence[str] = (), today: date | None = None,
 ) -> Expense:
     """Extract expense fields from a voice-note transcript or an email body."""
     today = today or date.today()
-    fields = _ask_gemini(TEXT_CONTEXT.format(today=today.isoformat(), text=text))
+    fields = _ask_gemini(TEXT_CONTEXT.format(today=today.isoformat(), text=text), known_items)
     return Expense(
         **fields.model_dump(),
         missing_fields=find_missing_fields(fields),

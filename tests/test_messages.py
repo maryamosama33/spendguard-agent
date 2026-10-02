@@ -55,6 +55,12 @@ def test_missing_fields_question_names_fields_in_arabic():
     assert msg == "تمام، وصلني طلب نقل رمل بـ 860 جنيه من النصر للنقل والتوريدات. بس ناقص: المشروع. ممكن تبعتهولي؟"
 
 
+def test_missing_fields_question_when_nothing_readable():
+    msg = missing_fields_question(Expense(missing_fields=["amount", "project"]))
+
+    assert msg == "تمام، وصلني طلبك. بس ناقص: المبلغ، المشروع. ممكن تبعتهولي؟"
+
+
 def test_unknown_item_name_is_kept_as_is():
     msg = owner_approval_request(_steel(item="بلاط"), None, NO_ANOMALY)
 

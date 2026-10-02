@@ -78,6 +78,28 @@ def test_extract_expense_from_text_sends_transcript_and_today(tmp_path):
     assert expense.sender == "201001112222"
 
 
+def test_known_item_names_are_offered_to_gemini():
+    fields = ExtractedFields(item="sand transport")
+
+    with patch("spendguard.extraction._client") as mock_client_factory:
+        generate = mock_client_factory.return_value.models.generate_content
+        generate.return_value = _mock_response(fields)
+        extract_expense_from_text("نقل رمل بـ 3000", "whatsapp", "201",
+                                  known_items=["cement", "sand transport"])
+
+    prompt = generate.call_args.kwargs["contents"][1]
+    assert '"cement", "sand transport"' in prompt
+
+
+def test_no_known_items_hint_without_history():
+    with patch("spendguard.extraction._client") as mock_client_factory:
+        generate = mock_client_factory.return_value.models.generate_content
+        generate.return_value = _mock_response(ExtractedFields())
+        extract_expense_from_text("x", "whatsapp", "201")
+
+    assert "price history" not in generate.call_args.kwargs["contents"][1]
+
+
 def test_extract_expense_unknown_mime_type(tmp_path):
     sample = tmp_path / "invoice.unknownext"
     sample.write_bytes(b"data")

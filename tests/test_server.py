@@ -44,6 +44,52 @@ def test_save_expense_refuses_incomplete_expense(seeded_db):
     conn.close()
 
 
+def test_save_expense_snaps_retyped_project_to_known_name(seeded_db):
+    result = server.save_expense(STEEL | {"project": "فيلا التجمع الخامس"})
+
+    assert result["project"] == "فيلات التجمع الخامس"
+
+
+def test_reject_refused_without_owner_decision(seeded_db):
+    saved = server.save_expense(STEEL)
+
+    result = server.reject_expense(saved["id"], "duplicate", owner_message="رسالة جديدة ومعاها فاتورة")
+
+    assert result["decided"] is False
+    assert storage.get_expense(storage.get_connection(), saved["id"]).status == "pending"
+
+
+def test_owner_rejection_recorded(seeded_db):
+    saved = server.save_expense(STEEL)
+
+    result = server.reject_expense(saved["id"], "السعر عالي", owner_message="ارفضه، السعر عالي")
+
+    assert result["status"] == "rejected"
+    assert result["reply"] == f"تمام، اترفض طلب رقم {saved['id']}. السبب: السعر عالي"
+
+
+def test_owner_approval_writes_sheet_once(seeded_db):
+    saved = server.save_expense(STEEL)
+
+    with patch("spendguard.server.append_to_sheet") as sheet:
+        first = server.approve_expense(saved["id"], owner_message="موافق")
+        second = server.approve_expense(saved["id"], owner_message="موافق")
+
+    assert first["status"] == "approved"
+    assert second["decided"] is False and "already approved" in second["error"]
+    sheet.assert_called_once()
+
+
+def test_approve_refused_when_owner_said_no(seeded_db):
+    saved = server.save_expense(STEEL)
+
+    with patch("spendguard.server.append_to_sheet") as sheet:
+        result = server.approve_expense(saved["id"], owner_message="مش موافق")
+
+    assert result["decided"] is False
+    sheet.assert_not_called()
+
+
 def test_save_expense_reply_warns_on_resubmitted_invoice(seeded_db):
     server.save_expense(STEEL)
 

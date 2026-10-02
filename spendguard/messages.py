@@ -34,7 +34,9 @@ def _money(amount: float | None) -> str:
 
 def _what(expense: Expense) -> str:
     """'نقل رمل بـ 860 جنيه من النصر للنقل والتوريدات' (skips missing parts)."""
-    parts = [_item(expense), f"بـ {_money(expense.amount)}"]
+    parts = [_item(expense)]
+    if expense.amount is not None:
+        parts.append(f"بـ {_money(expense.amount)}")
     if expense.supplier:
         parts.append(f"من {expense.supplier}")
     return " ".join(p for p in parts if p)
@@ -42,7 +44,9 @@ def _what(expense: Expense) -> str:
 
 def missing_fields_question(expense: Expense) -> str:
     missing = "، ".join(FIELD_AR.get(f, f) for f in expense.missing_fields)
-    return f"تمام، وصلني طلب {_what(expense)}. بس ناقص: {missing}. ممكن تبعتهولي؟"
+    what = _what(expense)
+    received = f"وصلني طلب {what}" if what else "وصلني طلبك"
+    return f"تمام، {received}. بس ناقص: {missing}. ممكن تبعتهولي؟"
 
 
 def _invoice_line(expense: Expense) -> str:
