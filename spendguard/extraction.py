@@ -30,8 +30,15 @@ Extract these fields:
 - invoice_number (if present)
 
 If a field is not present or you are not confident about it, leave it null.
-Do not guess. Set "confidence" to your overall confidence (0.0-1.0) in the
-extraction as a whole.
+Do not guess. Read only what you can actually see: if digits of the amount,
+date or invoice number are blurred, cut off or too dark to read with
+certainty, leave that field null. Never reconstruct or estimate a number.
+Set "confidence" to your overall confidence (0.0-1.0) in the extraction as a
+whole.
+
+For a photo or document, set "image_quality": "clear" if the text is easy to
+read, "blurry" if parts are hard to read, or "unreadable" if you cannot read
+the key numbers (amount, date) with certainty.
 """
 
 

@@ -14,6 +14,7 @@ class ExtractedFields(BaseModel):
     requester: str | None = None
     invoice_number: str | None = None
     confidence: float = 0.0
+    image_quality: str | None = None  # clear | blurry | unreadable (documents only)
 
 
 class Expense(ExtractedFields):

@@ -42,6 +42,11 @@ def _what(expense: Expense) -> str:
     return " ".join(p for p in parts if p)
 
 
+def unreadable_document_message() -> str:
+    return ("الصورة مش واضحة ومش قادر أقرا الفاتورة كويس. ممكن تصورها تاني في نور كويس "
+            "والورقة كلها باينة ومفرودة؟")
+
+
 def missing_fields_question(expense: Expense) -> str:
     missing = "، ".join(FIELD_AR.get(f, f) for f in expense.missing_fields)
     what = _what(expense)

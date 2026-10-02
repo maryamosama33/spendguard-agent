@@ -17,6 +17,7 @@ from spendguard.messages import (
     missing_fields_question,
     owner_approval_request,
     rejected_message,
+    unreadable_document_message,
 )
 from spendguard.models import Expense
 from spendguard.normalize import canonical_name
@@ -57,11 +58,13 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> dict:
 
     Args:
         file_path: path to the image/PDF to read.
-        source_channel: "whatsapp" or "email".
-        sender: the WhatsApp number or email address the request came from.
+        source_channel: "telegram", "whatsapp" or "email".
+        sender: the user ID, phone number or email address the request came from.
 
     If fields are missing, the result includes "reply_to_sender": the
-    Egyptian Arabic question to send as-is.
+    Egyptian Arabic question to send as-is. If the document is unreadable
+    (low confidence, or not even amount and supplier found), it is
+    {"unreadable": True, "reply_to_sender": <ask for a clearer photo>}.
 
     On failure returns {"error": ..., "retryable": bool} instead of raising, so
     the agent can tell the sender what happened.
@@ -72,7 +75,23 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> dict:
         return {"error": f"File not found: {file_path}", "retryable": False}
     except genai_errors.APIError as e:
         return _extraction_service_error(e)
+    if _is_unreadable(expense):
+        return {"unreadable": True, "confidence": expense.confidence,
+                "reply_to_sender": unreadable_document_message()}
     return _extraction_result(expense)
+
+
+MIN_CONFIDENCE = 0.6
+
+
+def _is_unreadable(expense: Expense) -> bool:
+    """Too unsure to ask field-by-field questions: ask for a new photo instead (F08)."""
+    # Gemini invents blurred digits (and reports high confidence), so any photo
+    # it calls blurry is re-requested: a wrong amount is worse than asking twice.
+    nothing_read = expense.amount is None and not expense.supplier
+    return (expense.image_quality in ("blurry", "unreadable")
+            or expense.confidence < MIN_CONFIDENCE
+            or nothing_read)
 
 
 @mcp.tool()
@@ -82,8 +101,8 @@ def extract_expense_from_text(text: str, source_channel: str, sender: str) -> di
 
     Args:
         text: the request text, e.g. the voice-note transcript.
-        source_channel: "whatsapp" or "email".
-        sender: the WhatsApp number or email address the request came from.
+        source_channel: "telegram", "whatsapp" or "email".
+        sender: the user ID, phone number or email address the request came from.
 
     Same result shape as extract_expense (including "reply_to_sender" when
     fields are missing, and {"error", "retryable"} on failure).

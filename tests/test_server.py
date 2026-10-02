@@ -4,6 +4,7 @@ import pytest
 from google.genai import errors as genai_errors
 
 from spendguard import server, storage
+from spendguard.models import Expense
 from spendguard.seed import seed_price_history
 
 
@@ -122,6 +123,54 @@ def test_extract_expense_from_text_quota_error_is_retryable_dict():
         result = server.extract_expense_from_text("دفعت 3000 جنيه", "whatsapp", "201")
 
     assert result["retryable"] is True
+
+
+def _extract_with(**fields):
+    expense = Expense(**fields)
+    with patch("spendguard.server._extract_expense", return_value=expense), \
+         patch("spendguard.server._known_items", return_value=[]):
+        return server.extract_expense("photo.jpg", "telegram", "1386120774")
+
+
+def test_low_confidence_photo_asks_for_new_photo():
+    result = _extract_with(amount=860.0, supplier="النصر", confidence=0.3)
+
+    assert result["unreadable"] is True
+    assert "تصورها تاني" in result["reply_to_sender"]
+
+
+def test_photo_marked_unreadable_asks_for_new_photo_even_if_confident():
+    # Gemini can invent blurry digits with high self-reported confidence.
+    result = _extract_with(amount=1100.0, supplier="شركة أسمنت السويس", confidence=0.85,
+                           image_quality="unreadable")
+
+    assert result["unreadable"] is True
+
+
+def test_blurry_photo_asks_for_new_photo():
+    result = _extract_with(amount=105.0, supplier="شركة أسمنت السويس", confidence=0.85,
+                           image_quality="blurry")
+
+    assert result["unreadable"] is True
+
+
+def test_clear_photo_is_read():
+    result = _extract_with(amount=860.0, supplier="النصر", confidence=0.95, image_quality="clear")
+
+    assert "unreadable" not in result
+
+
+def test_photo_with_nothing_read_asks_for_new_photo():
+    result = _extract_with(confidence=0.9)
+
+    assert result["unreadable"] is True
+
+
+def test_clear_photo_with_some_missing_fields_asks_for_fields():
+    result = _extract_with(amount=860.0, supplier="النصر", confidence=0.9, missing_fields=["project"])
+
+    assert "unreadable" not in result
+    assert "المشروع" in result["reply_to_sender"]
 
 
 def test_extract_expense_missing_file_returns_error():

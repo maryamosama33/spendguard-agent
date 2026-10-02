@@ -57,7 +57,7 @@ def _row_to_expense(row: sqlite3.Row) -> Expense:
 
 
 def insert_expense(conn: sqlite3.Connection, expense: Expense) -> int:
-    values = expense.model_dump(exclude={"id", "missing_fields"})
+    values = expense.model_dump(exclude={"id", "missing_fields", "image_quality"})
     values["missing_fields"] = ",".join(expense.missing_fields)
     columns = ", ".join(values.keys())
     placeholders = ", ".join(f":{k}" for k in values)
