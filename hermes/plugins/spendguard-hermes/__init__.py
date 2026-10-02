@@ -1,7 +1,8 @@
 """Hermes plugin: SpendGuard guardrails that don't depend on the model obeying the prompt.
 
 1. The owner decides. approve_expense / reject_expense are blocked in any
-   turn that also received an expense (extract_expense or save_expense), so
+   turn that also received an expense (extract_expense[_from_text] or
+   save_expense), so
    an approval or rejection can only come from a later message: the owner's.
 2. Exact replies. SpendGuard tools put the message for the user in
    "reply_to_sender", "reply_to_owner" or "reply". Chat models tend to wrap it
@@ -14,7 +15,8 @@ import threading
 from typing import Any
 
 TOOL_PREFIX = "mcp__spendguard__"
-INTAKE_TOOLS = {TOOL_PREFIX + "extract_expense", TOOL_PREFIX + "save_expense"}
+INTAKE_TOOLS = {TOOL_PREFIX + name for name in
+                ("extract_expense", "extract_expense_from_text", "save_expense")}
 DECISION_TOOLS = {TOOL_PREFIX + "approve_expense", TOOL_PREFIX + "reject_expense"}
 REPLY_KEYS = ("reply_to_sender", "reply_to_owner", "reply")
 

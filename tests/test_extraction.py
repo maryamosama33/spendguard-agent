@@ -1,6 +1,7 @@
+from datetime import date
 from unittest.mock import MagicMock, patch
 
-from spendguard.extraction import extract_expense
+from spendguard.extraction import extract_expense, extract_expense_from_text
 from spendguard.models import ExtractedFields
 
 
@@ -57,6 +58,24 @@ def test_extract_expense_missing_fields_not_guessed(tmp_path):
     assert set(expense.missing_fields) == {"supplier", "project"}
     assert expense.supplier is None
     assert expense.project is None
+
+
+def test_extract_expense_from_text_sends_transcript_and_today(tmp_path):
+    fields = ExtractedFields(date="2026-10-01", amount=3000.0, supplier="النصر للنقل والتوريدات",
+                             project="فيلات التجمع الخامس", cost_item="transport", confidence=0.9)
+    transcript = "دفعت 3000 جنيه نقل رمل امبارح"
+
+    with patch("spendguard.extraction._client") as mock_client_factory:
+        generate = mock_client_factory.return_value.models.generate_content
+        generate.return_value = _mock_response(fields)
+        expense = extract_expense_from_text(transcript, "whatsapp", "201001112222", today=date(2026, 10, 2))
+
+    prompt_text = generate.call_args.kwargs["contents"][0]
+    assert transcript in prompt_text and "Today is 2026-10-02" in prompt_text
+    assert expense.amount == 3000.0
+    assert expense.missing_fields == ["requester"]
+    assert expense.source_file is None
+    assert expense.sender == "201001112222"
 
 
 def test_extract_expense_unknown_mime_type(tmp_path):

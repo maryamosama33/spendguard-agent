@@ -71,6 +71,13 @@ def test_extract_expense_bad_request_is_not_retryable():
     assert result["retryable"] is False
 
 
+def test_extract_expense_from_text_quota_error_is_retryable_dict():
+    with patch("spendguard.server._extract_expense_from_text", side_effect=_api_error(503)):
+        result = server.extract_expense_from_text("دفعت 3000 جنيه", "whatsapp", "201")
+
+    assert result["retryable"] is True
+
+
 def test_extract_expense_missing_file_returns_error():
     result = server.extract_expense("does/not/exist.pdf", "whatsapp", "201")
 

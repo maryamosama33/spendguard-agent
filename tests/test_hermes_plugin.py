@@ -41,6 +41,12 @@ def test_reject_blocked_in_same_turn_as_new_expense(plugin):
     assert plugin.on_transform_llm_output("اترفض", session_id="s1", turn_id="t1") == "موافق ولا مرفوض؟"
 
 
+def test_reject_blocked_after_text_request(plugin):
+    _call(plugin, "mcp__spendguard__extract_expense_from_text", "t1")
+
+    assert _call(plugin, REJECT, "t1")["action"] == "block"
+
+
 def test_approve_blocked_in_same_turn_as_new_expense(plugin):
     _call(plugin, SAVE, "t1")
 

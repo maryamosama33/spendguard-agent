@@ -1,4 +1,5 @@
 import mimetypes
+from datetime import date
 from pathlib import Path
 
 from google import genai
@@ -56,21 +57,37 @@ def _mime_type_for(path: Path) -> str:
     return mime_type
 
 
-def _request_fields(path: Path, mime_type: str) -> ExtractedFields:
-    file_part = types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type)
+TEXT_CONTEXT = """
+The request is the text below, not a document: a transcribed Egyptian-Arabic
+voice note or the body of an email. Amounts may be written in words
+("تلاتة آلاف" = 3000). Today is {today}; convert relative dates such as
+"النهارده" (today) or "امبارح" (yesterday) to YYYY-MM-DD. The sender saying
+"I paid" does not tell you their name: leave requester null unless a name is
+given.
+
+Request text:
+{text}
+"""
+
+
+def _ask_gemini(content: types.Part | str) -> ExtractedFields:
     # Keep the client referenced: if it is garbage-collected mid-call, google-genai
     # closes its HTTP client and the request fails with "client has been closed".
     client = _client()
     _gemini_limiter.acquire()
     response = client.models.generate_content(
         model=GEMINI_MODEL,
-        contents=[file_part, EXTRACTION_PROMPT],
+        contents=[content, EXTRACTION_PROMPT],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=ExtractedFields,
         ),
     )
     return response.parsed
+
+
+def _request_fields(path: Path, mime_type: str) -> ExtractedFields:
+    return _ask_gemini(types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type))
 
 
 def find_missing_fields(fields: ExtractedFields) -> list[str]:
@@ -87,4 +104,18 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> Expense
         source_channel=source_channel,
         sender=sender,
         source_file=str(path),
+    )
+
+
+def extract_expense_from_text(
+    text: str, source_channel: str, sender: str, today: date | None = None
+) -> Expense:
+    """Extract expense fields from a voice-note transcript or an email body."""
+    today = today or date.today()
+    fields = _ask_gemini(TEXT_CONTEXT.format(today=today.isoformat(), text=text))
+    return Expense(
+        **fields.model_dump(),
+        missing_fields=find_missing_fields(fields),
+        source_channel=source_channel,
+        sender=sender,
     )

@@ -30,6 +30,20 @@ providers:
     # sends "default" to api.groq.com and gpt-oss rejects it with HTTP 400.)
     extra_body:
       reasoning_effort: default
+  # Same endpoint for the fallback: gpt-oss-120b has its own daily quota but
+  # needs reasoning_effort low/medium/high.
+  groq-oss:
+    base_url: "https://api.groq.com/openai/v1"
+    key_env: "GROQ_API_KEY"
+    api_mode: chat_completions
+    extra_body:
+      reasoning_effort: medium
+
+# Qwen's free tier is 200K tokens/day (about 7 complete expenses); then continue
+# on gpt-oss-120b. The spendguard-hermes plugin keeps it from deciding itself.
+fallback_providers:
+  - provider: groq-oss
+    model: openai/gpt-oss-120b
 
 agent:
   # Hermes doesn't parse Groq's "try again in Ns" text; enough attempts for its

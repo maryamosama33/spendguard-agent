@@ -8,6 +8,7 @@ from mcp.server.mcpserver import MCPServer
 from spendguard.checks import check_price_anomaly as _check_price_anomaly
 from spendguard.checks import find_duplicate
 from spendguard.extraction import extract_expense as _extract_expense
+from spendguard.extraction import extract_expense_from_text as _extract_expense_from_text
 from spendguard.extraction import find_missing_fields
 from spendguard.messages import (
     approved_message,
@@ -65,7 +66,30 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> dict:
         return {"error": f"File not found: {file_path}", "retryable": False}
     except genai_errors.APIError as e:
         return _extraction_service_error(e)
+    return _extraction_result(expense)
 
+
+@mcp.tool()
+def extract_expense_from_text(text: str, source_channel: str, sender: str) -> dict:
+    """Extract structured expense fields from a text request: a transcribed
+    voice note or an email body (no attachment).
+
+    Args:
+        text: the request text, e.g. the voice-note transcript.
+        source_channel: "whatsapp" or "email".
+        sender: the WhatsApp number or email address the request came from.
+
+    Same result shape as extract_expense (including "reply_to_sender" when
+    fields are missing, and {"error", "retryable"} on failure).
+    """
+    try:
+        expense = _extract_expense_from_text(text, source_channel, sender)
+    except genai_errors.APIError as e:
+        return _extraction_service_error(e)
+    return _extraction_result(expense)
+
+
+def _extraction_result(expense: Expense) -> dict:
     result = expense.model_dump()
     if expense.missing_fields:
         result["reply_to_sender"] = missing_fields_question(expense)
