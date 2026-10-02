@@ -1,0 +1,8 @@
+name: spendguard-hermes
+version: "0.2.0"
+description: "SpendGuard guardrails for Hermes: (1) the owner decides — approve_expense/reject_expense are blocked in the same turn an expense arrives, so only a later owner message can approve or reject; (2) SpendGuard's ready-made Egyptian Arabic reply (reply_to_sender / reply_to_owner / reply) is delivered verbatim instead of the model's paraphrase."
+author: "SpendGuard"
+provides_hooks:
+  - pre_tool_call
+  - post_tool_call
+  - transform_llm_output

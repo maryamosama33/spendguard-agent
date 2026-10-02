@@ -73,7 +73,7 @@ def _request_fields(path: Path, mime_type: str) -> ExtractedFields:
     return response.parsed
 
 
-def _missing_fields(fields: ExtractedFields) -> list[str]:
+def find_missing_fields(fields: ExtractedFields) -> list[str]:
     return [f for f in REQUIRED_FIELDS if getattr(fields, f) in (None, "")]
 
 
@@ -83,7 +83,7 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> Expense
     fields = _request_fields(path, _mime_type_for(path))
     return Expense(
         **fields.model_dump(),
-        missing_fields=_missing_fields(fields),
+        missing_fields=find_missing_fields(fields),
         source_channel=source_channel,
         sender=sender,
         source_file=str(path),

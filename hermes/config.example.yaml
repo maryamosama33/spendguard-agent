@@ -35,6 +35,17 @@ agent:
   # Hermes doesn't parse Groq's "try again in Ns" text; enough attempts for its
   # 2-4-8-16-32s backoff to span a full 1-minute token window.
   api_max_retries: 6
+  # Hermes's generic "keep calling tools / report what execution returned"
+  # blocks make the model wrap SpendGuard's replies in its own report.
+  tool_use_enforcement: false
+  execution_guidance: false
+
+# Guardrails plugin from hermes/plugins/spendguard-hermes (copy that folder to
+# <hermes home>/plugins/, then `hermes plugins enable spendguard-hermes`):
+# owner-only approve/reject, and SpendGuard's replies delivered verbatim.
+plugins:
+  enabled:
+    - spendguard-hermes
 
 mcp_servers:
   spendguard:

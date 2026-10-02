@@ -8,6 +8,13 @@ from mcp.server.mcpserver import MCPServer
 from spendguard.checks import check_price_anomaly as _check_price_anomaly
 from spendguard.checks import find_duplicate
 from spendguard.extraction import extract_expense as _extract_expense
+from spendguard.extraction import find_missing_fields
+from spendguard.messages import (
+    approved_message,
+    missing_fields_question,
+    owner_approval_request,
+    rejected_message,
+)
 from spendguard.models import Expense
 from spendguard.query import filter_expenses, summarize
 from spendguard.storage import (
@@ -46,15 +53,23 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> dict:
         source_channel: "whatsapp" or "email".
         sender: the WhatsApp number or email address the request came from.
 
+    If fields are missing, the result includes "reply_to_sender": the
+    Egyptian Arabic question to send as-is.
+
     On failure returns {"error": ..., "retryable": bool} instead of raising, so
     the agent can tell the sender what happened.
     """
     try:
-        return _extract_expense(file_path, source_channel, sender).model_dump()
+        expense = _extract_expense(file_path, source_channel, sender)
     except FileNotFoundError:
         return {"error": f"File not found: {file_path}", "retryable": False}
     except genai_errors.APIError as e:
         return _extraction_service_error(e)
+
+    result = expense.model_dump()
+    if expense.missing_fields:
+        result["reply_to_sender"] = missing_fields_question(expense)
+    return result
 
 
 def _extraction_service_error(e: genai_errors.APIError) -> dict:
@@ -73,15 +88,7 @@ def check_duplicate(expense: dict) -> dict:
     Args:
         expense: an expense dict, e.g. the output of extract_expense.
     """
-    candidate = Expense(**expense)
-    conn = get_connection()
-    try:
-        init_db(conn)
-        existing = list_expenses(conn, statuses=["pending", "approved"])
-    finally:
-        conn.close()
-
-    duplicate = find_duplicate(candidate, existing)
+    duplicate = _find_duplicate_in_db(Expense(**expense))
     return {
         "is_duplicate": duplicate is not None,
         "matched_expense": duplicate.model_dump() if duplicate else None,
@@ -95,14 +102,26 @@ def check_price_anomaly(expense: dict) -> dict:
     Args:
         expense: an expense dict, e.g. the output of extract_expense.
     """
-    candidate = Expense(**expense)
+    return _price_check_in_db(Expense(**expense))
+
+
+def _find_duplicate_in_db(candidate: Expense) -> Expense | None:
+    conn = get_connection()
+    try:
+        init_db(conn)
+        existing = list_expenses(conn, statuses=["pending", "approved"])
+    finally:
+        conn.close()
+    return find_duplicate(candidate, existing)
+
+
+def _price_check_in_db(candidate: Expense) -> dict:
     conn = get_connection()
     try:
         init_db(conn)
         history = list_expenses(conn, statuses=["approved"], supplier=candidate.supplier)
     finally:
         conn.close()
-
     return _check_price_anomaly(candidate, history)
 
 
@@ -110,10 +129,18 @@ def check_price_anomaly(expense: dict) -> dict:
 def save_expense(expense: dict) -> dict:
     """Save an expense as pending, awaiting owner approval. Never writes to Sheets.
 
+    The result includes "reply_to_owner": the Egyptian Arabic approval request
+    (with any duplicate/price warnings, re-checked here) to send as-is.
+    Refuses to save if required fields are missing, returning
+    {"saved": False, "missing_fields", "reply_to_sender"} instead.
+
     Args:
         expense: an expense dict, e.g. the output of extract_expense.
     """
     candidate = Expense(**expense)
+    candidate.missing_fields = find_missing_fields(candidate)
+    if candidate.missing_fields:
+        return _not_saved_missing_fields(candidate)
     candidate.status = "pending"
     conn = get_connection()
     try:
@@ -122,7 +149,19 @@ def save_expense(expense: dict) -> dict:
     finally:
         conn.close()
 
-    return candidate.model_dump()
+    duplicate = _find_duplicate_in_db(candidate)
+    anomaly = _price_check_in_db(candidate)
+    result = candidate.model_dump()
+    result["reply_to_owner"] = owner_approval_request(candidate, duplicate, anomaly)
+    return result
+
+
+def _not_saved_missing_fields(candidate: Expense) -> dict:
+    return {
+        "saved": False,
+        "missing_fields": candidate.missing_fields,
+        "reply_to_sender": missing_fields_question(candidate),
+    }
 
 
 def _require_expense(conn, expense_id: int) -> Expense:
@@ -149,7 +188,7 @@ def approve_expense(expense_id: int) -> dict:
 
     expense.status = "approved"
     append_to_sheet(expense)
-    return expense.model_dump()
+    return expense.model_dump() | {"reply": approved_message(expense)}
 
 
 @mcp.tool()
@@ -170,7 +209,7 @@ def reject_expense(expense_id: int, reason: str) -> dict:
 
     expense.status = "rejected"
     expense.rejection_reason = reason
-    return expense.model_dump()
+    return expense.model_dump() | {"reply": rejected_message(expense)}
 
 
 @mcp.tool()
