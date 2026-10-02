@@ -33,7 +33,10 @@ extraction as a whole.
 
 
 def _client() -> genai.Client:
-    return genai.Client()  # reads GEMINI_API_KEY from env
+    # Reads GEMINI_API_KEY from env. Retries with backoff on 429/5xx, since
+    # Gemini returns transient 503 "high demand" errors.
+    retry = types.HttpRetryOptions(attempts=5)
+    return genai.Client(http_options=types.HttpOptions(retry_options=retry))
 
 
 def _mime_type_for(path: Path) -> str:
@@ -45,7 +48,10 @@ def _mime_type_for(path: Path) -> str:
 
 def _request_fields(path: Path, mime_type: str) -> ExtractedFields:
     file_part = types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type)
-    response = _client().models.generate_content(
+    # Keep the client referenced: if it is garbage-collected mid-call, google-genai
+    # closes its HTTP client and the request fails with "client has been closed".
+    client = _client()
+    response = client.models.generate_content(
         model="gemini-3.8-flash",
         contents=[file_part, EXTRACTION_PROMPT],
         config=types.GenerateContentConfig(
