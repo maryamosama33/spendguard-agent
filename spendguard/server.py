@@ -286,8 +286,8 @@ def approve_expense(expense_id: int, owner_message: str) -> dict:
         conn.close()
 
     expense.status = "approved"
-    append_to_sheet(expense)
-    return expense.model_dump() | {"reply": approved_message(expense)}
+    synced = append_to_sheet(expense)
+    return expense.model_dump() | {"sheet_synced": synced, "reply": approved_message(expense, synced)}
 
 
 @mcp.tool()

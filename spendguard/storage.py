@@ -144,6 +144,16 @@ def _worksheet() -> gspread.Worksheet:
     return _sheets_client().open_by_key(sheet_id).sheet1
 
 
-def append_to_sheet(expense: Expense) -> None:
+def sheets_configured() -> bool:
+    return bool(os.environ.get("GOOGLE_SHEET_ID") and os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE"))
+
+
+def append_to_sheet(expense: Expense) -> bool:
+    """Mirror an approved expense to Google Sheets. Returns False (and writes
+    nothing) when Sheets isn't configured, so a demo without Google
+    credentials still works; SQLite stays the source of truth."""
+    if not sheets_configured():
+        return False
     row = [str(getattr(expense, col) or "") for col in SHEET_COLUMNS]
     _worksheet().append_row(row)
+    return True

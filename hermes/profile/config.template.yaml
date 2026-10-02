@@ -1,24 +1,20 @@
-# SpendGuard settings for Hermes.
+# Hermes config for the "spendguard" profile.
 #
-# Merge these into your Hermes config.yaml (`hermes config path` shows where it
-# is). Each top-level key below already exists in Hermes's default config:
-# replace those values rather than adding a second copy of the key. Adjust the
-# absolute paths to where you cloned this repo.
+# Don't install by hand: `python scripts/spendguard.py setup` fills in
+# {{PYTHON}} / {{REPO_ROOT}}, installs this as the "spendguard" Hermes profile
+# (keys go in the profile's .env, copied from this repo's .env), and enables the
+# guardrails plugin. Hermes fills every key not set here with its defaults.
 #
-# Hermes's own .env needs GROQ_API_KEY, and for the Telegram bot:
+# The profile's .env holds GROQ_API_KEY and, for the Telegram bot,
 # TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS (comma-separated numeric user IDs;
-# or approve newcomers with `hermes pairing approve telegram <CODE>`) and
-# TELEGRAM_HOME_CHANNEL (the owner's chat ID). SpendGuard loads its own .env
-# (GEMINI_API_KEY, GOOGLE_SERVICE_ACCOUNT_FILE, GOOGLE_SHEET_ID) by absolute
-# path at startup -- no secrets live in this file.
+# or approve newcomers with `hermes -p spendguard pairing approve telegram
+# <CODE>`) and TELEGRAM_HOME_CHANNEL (the owner's chat ID). SpendGuard loads its
+# own .env (GEMINI_API_KEY, GOOGLE_*) from the repo. No secrets live here.
 #
-# Start the bot in its own terminal, from a folder outside this repo:
-#   cd <empty dir>; hermes gateway run
-#
-# Run Hermes from a folder OUTSIDE this repo (e.g. `--in <empty dir>
-# --ignore-rules`): inside a code repo Hermes switches to coding-agent mode and
-# loads CLAUDE.md, which roughly doubles the prompt and breaks Groq's free
-# 8K tokens/min budget.
+# `scripts/spendguard.py chat|bot` run Hermes from the profile's workspace
+# folder, outside this repo: inside a code repo Hermes switches to coding-agent
+# mode and loads CLAUDE.md, which roughly doubles the prompt and breaks Groq's
+# free 8K tokens/min budget.
 
 # Chat model: Groq free tier. Gemini is used only inside SpendGuard's
 # extract_expense tool for invoice reading.
@@ -60,8 +56,7 @@ agent:
   tool_use_enforcement: false
   execution_guidance: false
 
-# Guardrails plugin from hermes/plugins/spendguard-hermes (copy that folder to
-# <hermes home>/plugins/, then `hermes plugins enable spendguard-hermes`):
+# Guardrails plugin (hermes/plugins/spendguard-hermes, shipped in the profile):
 # owner-only approve/reject, and SpendGuard's replies delivered verbatim.
 plugins:
   enabled:
@@ -69,12 +64,12 @@ plugins:
 
 mcp_servers:
   spendguard:
-    command: "C:\\Users\\user\\Desktop\\spendguard-agent\\venv\\Scripts\\python.exe"
+    command: "{{PYTHON}}"
     args: ["-m", "spendguard.server"]
     # Hermes spawns this without a working directory, so the repo root must be
     # on PYTHONPATH for `-m spendguard.server` to resolve.
     env:
-      PYTHONPATH: "C:\\Users\\user\\Desktop\\spendguard-agent"
+      PYTHONPATH: "{{REPO_ROOT}}"
     # extract_expense may wait up to ~60s on its Gemini rate limiter plus retries.
     timeout: 300
     tools:
@@ -95,8 +90,11 @@ platform_toolsets:
 # Telegram users should see only SpendGuard's Egyptian Arabic reply: no mid-turn
 # model narration (it came out in English), no Hermes warning notices
 # (fallback/retry), no reasoning or tool rows; status bubbles are deleted once
-# the reply lands. Keep top-level `streaming.enabled: false` too, or Telegram
-# shows the model's draft before the plugin swaps in SpendGuard's text.
+# the reply lands. Streaming stays off, or Telegram shows the model's draft
+# before the plugin swaps in SpendGuard's text.
+streaming:
+  enabled: false
+
 display:
   platforms:
     telegram:

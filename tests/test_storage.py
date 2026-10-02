@@ -102,12 +102,23 @@ def test_update_status_to_rejected_records_reason(conn):
     assert expense.rejection_reason == "duplicate"
 
 
-def test_append_to_sheet_writes_expected_row():
+def test_append_to_sheet_skipped_without_sheets_config(monkeypatch):
+    monkeypatch.delenv("GOOGLE_SHEET_ID", raising=False)
+
+    with patch("spendguard.storage._worksheet") as worksheet:
+        assert append_to_sheet(Expense(id=1, status="approved")) is False
+
+    worksheet.assert_not_called()
+
+
+def test_append_to_sheet_writes_expected_row(monkeypatch):
+    monkeypatch.setenv("GOOGLE_SHEET_ID", "sheet")
+    monkeypatch.setenv("GOOGLE_SERVICE_ACCOUNT_FILE", "creds.json")
     expense = Expense(id=1, date="2026-09-30", amount=1200.0, supplier="Al-Nasr Sand Co", status="approved")
     mock_worksheet = MagicMock()
 
     with patch("spendguard.storage._worksheet", return_value=mock_worksheet):
-        append_to_sheet(expense)
+        assert append_to_sheet(expense) is True
 
     mock_worksheet.append_row.assert_called_once()
     row = mock_worksheet.append_row.call_args[0][0]

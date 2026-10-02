@@ -1,0 +1,19 @@
+name: spendguard
+version: 0.1.0
+description: "SpendGuard: controls SME field spending on Telegram (Egyptian Arabic): reads invoices, catches duplicates and overpricing, asks the owner to approve."
+author: "SpendGuard team"
+license: "MIT"
+
+env_requires:
+  - name: GROQ_API_KEY
+    description: "Groq API key (free tier) for the chat model"
+    required: true
+  - name: TELEGRAM_BOT_TOKEN
+    description: "Telegram bot token from @BotFather (only for the Telegram bot)"
+    required: false
+  - name: TELEGRAM_ALLOWED_USERS
+    description: "Comma-separated numeric Telegram user IDs allowed to use the bot"
+    required: false
+  - name: TELEGRAM_HOME_CHANNEL
+    description: "Owner's Telegram chat ID"
+    required: false

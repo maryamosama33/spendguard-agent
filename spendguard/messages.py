@@ -88,8 +88,9 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
     return "\n".join(lines)
 
 
-def approved_message(expense: Expense) -> str:
-    return f"تمام، اتعتمد طلب رقم {expense.id} ({_money(expense.amount)}) واتسجل في شيت المصاريف."
+def approved_message(expense: Expense, sheet_synced: bool = True) -> str:
+    where = "واتسجل في شيت المصاريف" if sheet_synced else "واتسجل في السيستم"
+    return f"تمام، اتعتمد طلب رقم {expense.id} ({_money(expense.amount)}) {where}."
 
 
 def rejected_message(expense: Expense) -> str:
