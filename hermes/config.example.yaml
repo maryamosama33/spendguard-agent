@@ -5,9 +5,15 @@
 # replace those values rather than adding a second copy of the key. Adjust the
 # absolute paths to where you cloned this repo.
 #
-# Hermes's own .env needs GROQ_API_KEY. SpendGuard loads its own .env
+# Hermes's own .env needs GROQ_API_KEY, and for the Telegram bot:
+# TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS (comma-separated numeric user IDs;
+# or approve newcomers with `hermes pairing approve telegram <CODE>`) and
+# TELEGRAM_HOME_CHANNEL (the owner's chat ID). SpendGuard loads its own .env
 # (GEMINI_API_KEY, GOOGLE_SERVICE_ACCOUNT_FILE, GOOGLE_SHEET_ID) by absolute
 # path at startup -- no secrets live in this file.
+#
+# Start the bot in its own terminal, from a folder outside this repo:
+#   cd <empty dir>; hermes gateway run
 #
 # Run Hermes from a folder OUTSIDE this repo (e.g. `--in <empty dir>
 # --ignore-rules`): inside a code repo Hermes switches to coding-agent mode and
@@ -84,6 +90,21 @@ mcp_servers:
 #     delegation cronjob computer_use
 platform_toolsets:
   cli: []
+  telegram: []
+
+# Telegram users should see only SpendGuard's Egyptian Arabic reply: no mid-turn
+# model narration (it came out in English), no Hermes warning notices
+# (fallback/retry), no reasoning or tool rows; status bubbles are deleted once
+# the reply lands. Keep top-level `streaming.enabled: false` too, or Telegram
+# shows the model's draft before the plugin swaps in SpendGuard's text.
+display:
+  platforms:
+    telegram:
+      interim_assistant_messages: false
+      suppress_warning_notifications: true
+      show_reasoning: false
+      tool_progress: "off"
+      cleanup_progress: true
 
 tools:
   # Expose the 7 tools directly instead of behind tool_search/tool_describe/
