@@ -41,13 +41,16 @@ def test_seed_price_history_skips_if_data_exists(conn):
     assert len(list_expenses(conn)) == before
 
 
-def test_seed_price_history_force_reseeds(conn):
+def test_seed_price_history_force_resets_to_seed(conn):
     seed_price_history(conn)
     before = len(list_expenses(conn))
+    insert_expense(conn, Expense(supplier="demo run leftover", amount=1.0, status="pending"))
 
     seed_price_history(conn, force=True)
 
-    assert len(list_expenses(conn)) == before * 2
+    remaining = list_expenses(conn)
+    assert len(remaining) == before
+    assert all(e.status == "approved" for e in remaining)
 
 
 def test_seeded_steel_history_triggers_price_anomaly(conn):

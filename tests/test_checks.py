@@ -52,6 +52,20 @@ def test_no_match_against_empty_history():
     assert find_duplicate(candidate, []) is None
 
 
+def test_saved_expense_does_not_match_its_own_row():
+    candidate = _expense(id=37)
+    existing = [_expense(id=37)]
+
+    assert find_duplicate(candidate, existing) is None
+
+
+def test_saved_expense_still_matches_a_different_row():
+    candidate = _expense(id=37)
+    existing = [_expense(id=37), _expense(id=6)]
+
+    assert find_duplicate(candidate, existing).id == 6
+
+
 def _history_entry(amount: float, date: str, item: str = "steel", supplier: str = "Al-Nasr Sand Co") -> Expense:
     return _expense(amount=amount, date=date, item=item, supplier=supplier)
 

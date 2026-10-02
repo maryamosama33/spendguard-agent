@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from google.genai import errors as genai_errors
 from mcp.server.mcpserver import MCPServer
 
 from spendguard.checks import check_price_anomaly as _check_price_anomaly
@@ -44,8 +45,25 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> dict:
         file_path: path to the image/PDF to read.
         source_channel: "whatsapp" or "email".
         sender: the WhatsApp number or email address the request came from.
+
+    On failure returns {"error": ..., "retryable": bool} instead of raising, so
+    the agent can tell the sender what happened.
     """
-    return _extract_expense(file_path, source_channel, sender).model_dump()
+    try:
+        return _extract_expense(file_path, source_channel, sender).model_dump()
+    except FileNotFoundError:
+        return {"error": f"File not found: {file_path}", "retryable": False}
+    except genai_errors.APIError as e:
+        return _extraction_service_error(e)
+
+
+def _extraction_service_error(e: genai_errors.APIError) -> dict:
+    retryable = e.code in (429, 500, 502, 503, 504)
+    return {
+        "error": f"Invoice-reading service unavailable (HTTP {e.code}). "
+        + ("Try again in a few minutes." if retryable else "Cannot read this document."),
+        "retryable": retryable,
+    }
 
 
 @mcp.tool()

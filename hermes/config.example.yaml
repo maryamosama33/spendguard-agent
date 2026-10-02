@@ -1,19 +1,72 @@
-# SpendGuard MCP server entry for Hermes.
+# SpendGuard settings for Hermes.
 #
-# Merge this into your Hermes config.yaml's mcp_servers: section (create the
-# section if it doesn't exist yet). Adjust the absolute paths below to match
-# where you cloned this repo.
+# Merge these into your Hermes config.yaml (`hermes config path` shows where it
+# is). Each top-level key below already exists in Hermes's default config:
+# replace those values rather than adding a second copy of the key. Adjust the
+# absolute paths to where you cloned this repo.
 #
-# PYTHONPATH is required: Hermes spawns this as a subprocess without setting
-# a working directory, so `python -m spendguard.server` can only find the
-# spendguard package if the repo root is on sys.path via PYTHONPATH. The
-# server loads its own .env (GEMINI_API_KEY, GOOGLE_SERVICE_ACCOUNT_FILE,
-# GOOGLE_SHEET_ID) by absolute path at startup -- no secrets need to live in
-# this file.
+# Hermes's own .env needs GROQ_API_KEY. SpendGuard loads its own .env
+# (GEMINI_API_KEY, GOOGLE_SERVICE_ACCOUNT_FILE, GOOGLE_SHEET_ID) by absolute
+# path at startup -- no secrets live in this file.
+#
+# Run Hermes from a folder OUTSIDE this repo (e.g. `--in <empty dir>
+# --ignore-rules`): inside a code repo Hermes switches to coding-agent mode and
+# loads CLAUDE.md, which roughly doubles the prompt and breaks Groq's free
+# 8K tokens/min budget.
+
+# Chat model: Groq free tier. Gemini is used only inside SpendGuard's
+# extract_expense tool for invoice reading.
+model:
+  default: "qwen/qwen3.8-27b"
+  provider: "groq"
+
+providers:
+  groq:
+    base_url: "https://api.groq.com/openai/v1"
+    key_env: "GROQ_API_KEY"
+    api_mode: chat_completions
+    # Groq's Qwen models accept reasoning_effort only as "none"/"default".
+    # (openai/gpt-oss-120b needs low/medium/high here instead: Hermes always
+    # sends "default" to api.groq.com and gpt-oss rejects it with HTTP 400.)
+    extra_body:
+      reasoning_effort: default
+
+agent:
+  # Hermes doesn't parse Groq's "try again in Ns" text; enough attempts for its
+  # 2-4-8-16-32s backoff to span a full 1-minute token window.
+  api_max_retries: 6
 
 mcp_servers:
   spendguard:
     command: "C:\\Users\\user\\Desktop\\spendguard-agent\\venv\\Scripts\\python.exe"
     args: ["-m", "spendguard.server"]
+    # Hermes spawns this without a working directory, so the repo root must be
+    # on PYTHONPATH for `-m spendguard.server` to resolve.
     env:
       PYTHONPATH: "C:\\Users\\user\\Desktop\\spendguard-agent"
+    # extract_expense may wait up to ~60s on its Gemini rate limiter plus retries.
+    timeout: 300
+    tools:
+      # SpendGuard serves no MCP prompts/resources; don't send Hermes's 4
+      # generated list/get/read utility tools to the model.
+      resources: false
+      prompts: false
+
+# Only SpendGuard's 7 tools (F26): no terminal/file/web/browser built-ins. An
+# empty list leaves just the MCP server's tools. Equivalent:
+#   hermes tools disable --platform cli web browser terminal file code_execution \
+#     vision image_gen tts skills todo memory session_search connections clarify \
+#     delegation cronjob computer_use
+platform_toolsets:
+  cli: []
+
+tools:
+  # Expose the 7 tools directly instead of behind tool_search/tool_describe/
+  # tool_call (fewer model calls per tool use).
+  tool_search:
+    enabled: "off"
+
+auxiliary:
+  # Session titles cost an extra Groq call per session; not needed.
+  title_generation:
+    enabled: false

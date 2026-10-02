@@ -90,6 +90,11 @@ def list_expenses(
     return [_row_to_expense(row) for row in rows]
 
 
+def clear_expenses(conn: sqlite3.Connection) -> None:
+    conn.execute("DELETE FROM expenses")
+    conn.commit()
+
+
 def get_expense(conn: sqlite3.Connection, expense_id: int) -> Expense | None:
     row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
     return _row_to_expense(row) if row else None

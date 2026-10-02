@@ -33,7 +33,9 @@ extraction as a whole.
 """
 
 
-GEMINI_MODEL = "gemini-3.8-flash"
+# Flash-Lite: reads Arabic handwriting as well as gemini-3.8-flash in our tests,
+# and the free tier caps 3.8-flash at 20 requests/day (too few for a demo).
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 # Free tier allows 5 requests/minute; stay under it so callers wait instead of failing.
 _gemini_limiter = RateLimiter(max_calls=4, window=60.0)

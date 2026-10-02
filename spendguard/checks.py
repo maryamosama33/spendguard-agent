@@ -14,9 +14,16 @@ def _same_supplier_amount_date(a: Expense, b: Expense) -> bool:
     )
 
 
+def _is_same_record(a: Expense, b: Expense) -> bool:
+    return a.id is not None and a.id == b.id
+
+
 def find_duplicate(candidate: Expense, existing: list[Expense]) -> Expense | None:
-    """Return the first existing expense that looks like a repeat of candidate."""
+    """Return the first existing expense that looks like a repeat of candidate.
+    An already-saved candidate never matches its own row."""
     for other in existing:
+        if _is_same_record(candidate, other):
+            continue
         if _same_invoice(candidate, other) or _same_supplier_amount_date(candidate, other):
             return other
     return None
