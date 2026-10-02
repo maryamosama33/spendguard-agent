@@ -5,6 +5,7 @@ from google import genai
 from google.genai import types
 
 from spendguard.models import Expense, ExtractedFields
+from spendguard.ratelimit import RateLimiter
 
 REQUIRED_FIELDS = ["date", "amount", "supplier", "project", "cost_item", "requester"]
 
@@ -32,10 +33,17 @@ extraction as a whole.
 """
 
 
+GEMINI_MODEL = "gemini-3.8-flash"
+
+# Free tier allows 5 requests/minute; stay under it so callers wait instead of failing.
+_gemini_limiter = RateLimiter(max_calls=4, window=60.0)
+
+
 def _client() -> genai.Client:
-    # Reads GEMINI_API_KEY from env. Retries with backoff on 429/5xx, since
-    # Gemini returns transient 503 "high demand" errors.
-    retry = types.HttpRetryOptions(attempts=5)
+    # Reads GEMINI_API_KEY from env. Retries with exponential backoff
+    # (~5s, 10s, 20s) on 429/5xx: Gemini returns transient 503 "high demand"
+    # errors, and 429 quota errors ask to retry after up to ~30s.
+    retry = types.HttpRetryOptions(attempts=4, initial_delay=5.0, max_delay=30.0)
     return genai.Client(http_options=types.HttpOptions(retry_options=retry))
 
 
@@ -51,8 +59,9 @@ def _request_fields(path: Path, mime_type: str) -> ExtractedFields:
     # Keep the client referenced: if it is garbage-collected mid-call, google-genai
     # closes its HTTP client and the request fails with "client has been closed".
     client = _client()
+    _gemini_limiter.acquire()
     response = client.models.generate_content(
-        model="gemini-3.8-flash",
+        model=GEMINI_MODEL,
         contents=[file_part, EXTRACTION_PROMPT],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
