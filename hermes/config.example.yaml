@@ -81,3 +81,14 @@ auxiliary:
   # Session titles cost an extra Groq call per session; not needed.
   title_generation:
     enabled: false
+
+# Voice notes (F02): Groq Whisper (free, separate audio quota) in Arabic.
+# Tested on an Egyptian-Arabic clip: word-for-word transcript.
+stt:
+  enabled: true
+  provider: "groq"
+  language: "ar"
+  # Vocabulary hint so Whisper spells project/supplier names right.
+  prompt: "طلب صرف، جنيه، فاتورة، حديد تسليح، أسمنت، رمل، نقل، عمالة، مقاول، فيلات التجمع الخامس، مستودع 6 أكتوبر، موقع العاصمة الإدارية، النصر للنقل والتوريدات، مصنع الحديد الوطني، شركة أسمنت السويس"
+  groq:
+    model: "whisper-large-v3-turbo"
