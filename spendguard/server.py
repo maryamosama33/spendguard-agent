@@ -30,6 +30,7 @@ from spendguard.models import Expense
 from spendguard.normalize import canonical_name, resolve_name
 from spendguard.query import filter_expenses, summarize
 from spendguard.storage import (
+    allowed_document,
     append_to_sheet,
     archive_document,
     get_connection,
@@ -77,16 +78,25 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> dict:
     On failure returns {"error": ..., "retryable": bool} instead of raising, so
     the agent can tell the sender what happened.
     """
+    if refusal := _document_refusal(file_path):
+        return refusal
     try:
         expense = _extract_expense(file_path, source_channel, sender, _known_items())
-    except FileNotFoundError:
-        return {"error": f"File not found: {file_path}", "retryable": False}
     except genai_errors.APIError as e:
         return _extraction_service_error(e)
     if _is_unreadable(expense):
         return {"unreadable": True, "confidence": expense.confidence,
                 "reply_to_sender": unreadable_document_message()}
     return _extraction_result(expense)
+
+
+def _document_refusal(file_path: str) -> dict | None:
+    if not Path(file_path).is_file():
+        return {"error": f"File not found: {file_path}", "retryable": False}
+    if not allowed_document(file_path):
+        return {"error": "Only invoice photos/PDFs (pdf, jpg, png, webp) sent in the chat or "
+                         "placed in data/seed/invoices/ can be read.", "retryable": False}
+    return None
 
 
 MIN_CONFIDENCE = 0.6

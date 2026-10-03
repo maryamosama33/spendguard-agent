@@ -11,6 +11,9 @@ from spendguard.models import Expense
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "spendguard.db"
 DOCUMENTS_DIR = Path(__file__).resolve().parent.parent / "data" / "documents"
+SEED_DIR = Path(__file__).resolve().parent.parent / "data" / "seed"
+DOCUMENT_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
+HERMES_MEDIA_CACHES = {("cache", "images"), ("cache", "documents")}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS expenses (
@@ -148,13 +151,29 @@ def update_status(
     conn.commit()
 
 
+def _in_hermes_media_cache(path: Path) -> bool:
+    return any((parent.parent.name, parent.name) in HERMES_MEDIA_CACHES for parent in path.parents)
+
+
+def allowed_document(path: str | Path) -> bool:
+    """An invoice photo/PDF uploaded through a chat (Hermes's media cache), a
+    demo file in data/seed/, or an archived copy. Paths come from the chat
+    model, which a sender can try to talk into reading or attaching any file
+    on this machine (.env, credentials)."""
+    resolved = Path(path).resolve()
+    if resolved.suffix.lower() not in DOCUMENT_EXTENSIONS or not resolved.is_file():
+        return False
+    return (resolved.is_relative_to(SEED_DIR.resolve()) or resolved.is_relative_to(DOCUMENTS_DIR.resolve())
+            or _in_hermes_media_cache(resolved))
+
+
 def archive_document(source: str | None) -> str | None:
     """Copy the original document into data/documents/ (named by content hash,
     so re-saving the same file is a no-op) and return the copy's path. Chat
     gateways keep downloads in a cache that may be cleaned; the audit link
-    must outlive it (F06). Returns the input unchanged if the file is gone."""
-    if not source or not Path(source).is_file():
-        return source
+    must outlive it (F06). None if there is no allowed document at `source`."""
+    if not source or not allowed_document(source):
+        return None
     src = Path(source).resolve()
     digest = hashlib.sha256(src.read_bytes()).hexdigest()[:16]
     target = DOCUMENTS_DIR / f"{digest}{src.suffix.lower()}"

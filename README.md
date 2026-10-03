@@ -56,7 +56,10 @@ New email from sales@nsf-steel.example with an attached invoice: <full path>\dat
 Reject it, the price is too high
 ```
 
-Replies take 20-90 s on the free tiers. `python scripts/spendguard.py reset`
+To try your own invoice in the terminal, copy it (pdf, jpg, png or webp) into
+`data/seed/invoices/` first: SpendGuard only reads files sent in the chat or
+placed there, so nobody can talk the agent into reading other files on the
+machine. Replies take 20-90 s on the free tiers. `python scripts/spendguard.py reset`
 restores the demo data between runs.
 
 ### Telegram bot (optional)

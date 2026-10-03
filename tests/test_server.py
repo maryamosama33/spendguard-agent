@@ -35,8 +35,8 @@ def test_save_expense_reply_includes_price_warning(seeded_db):
 
 def test_save_expense_archives_source_document_and_attaches_it(seeded_db, tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DOCUMENTS_DIR", tmp_path / "documents")
-    original = tmp_path / "cache" / "invoice.PDF"
-    original.parent.mkdir()
+    original = tmp_path / "hermes" / "cache" / "documents" / "doc_ab12_invoice.PDF"  # a Telegram upload
+    original.parent.mkdir(parents=True)
     original.write_bytes(b"%PDF-1.4 steel")
 
     result = server.save_expense(STEEL | {"source_file": str(original)})
@@ -52,15 +52,54 @@ def test_save_expense_archives_source_document_and_attaches_it(seeded_db, tmp_pa
 
 def test_archive_document_is_idempotent_and_skips_missing_files(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DOCUMENTS_DIR", tmp_path / "documents")
-    original = tmp_path / "photo.jpg"
+    monkeypatch.setattr(storage, "SEED_DIR", tmp_path / "seed")
+    original = tmp_path / "seed" / "photo.jpg"
+    original.parent.mkdir()
     original.write_bytes(b"jpeg")
 
     first = storage.archive_document(str(original))
 
     assert storage.archive_document(first) == first
     assert len(list(storage.DOCUMENTS_DIR.iterdir())) == 1
-    assert storage.archive_document(str(tmp_path / "gone.jpg")) == str(tmp_path / "gone.jpg")
+    assert storage.archive_document(str(tmp_path / "seed" / "gone.jpg")) is None
     assert storage.archive_document(None) is None
+
+
+def test_model_supplied_path_outside_upload_folders_is_not_attached(seeded_db, tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DOCUMENTS_DIR", tmp_path / "documents")
+    secret = tmp_path / "Desktop" / "salaries.pdf"
+    secret.parent.mkdir()
+    secret.write_bytes(b"%PDF private")
+
+    result = server.save_expense(STEEL | {"source_file": str(secret)})
+
+    assert result["source_file"] is None
+    assert "MEDIA:" not in result["reply_to_owner"]
+    assert not storage.DOCUMENTS_DIR.exists()
+
+
+def test_extract_refuses_files_outside_upload_folders(tmp_path):
+    env_like = tmp_path / "credentials.json"
+    env_like.write_text("{}")
+    other_pdf = tmp_path / "private.pdf"
+    other_pdf.write_bytes(b"%PDF")
+
+    with patch("spendguard.server._extract_expense") as gemini:
+        for path in (env_like, other_pdf):
+            assert server.extract_expense(str(path), "telegram", "1")["retryable"] is False
+
+    gemini.assert_not_called()
+
+
+def test_extract_reads_demo_invoices_in_seed_folder():
+    invoice = storage.SEED_DIR / "invoices" / "steel_invoice_overpriced.pdf"
+
+    with patch("spendguard.server._extract_expense", return_value=Expense(amount=1.0, supplier="x",
+                                                                         confidence=0.9)) as gemini, \
+         patch("spendguard.server._known_items", return_value=[]):
+        server.extract_expense(str(invoice), "email", "a@b.example")
+
+    gemini.assert_called_once()
 
 
 def test_save_expense_refuses_incomplete_expense(seeded_db):
@@ -244,7 +283,8 @@ def _api_error(code: int) -> genai_errors.APIError:
 
 
 def test_extract_expense_quota_error_is_retryable_dict():
-    with patch("spendguard.server._extract_expense", side_effect=_api_error(429)):
+    with patch("spendguard.server._extract_expense", side_effect=_api_error(429)), \
+         patch("spendguard.server._document_refusal", return_value=None):
         result = server.extract_expense("invoice.pdf", "email", "a@b.example")
 
     assert result["retryable"] is True
@@ -252,7 +292,8 @@ def test_extract_expense_quota_error_is_retryable_dict():
 
 
 def test_extract_expense_bad_request_is_not_retryable():
-    with patch("spendguard.server._extract_expense", side_effect=_api_error(400)):
+    with patch("spendguard.server._extract_expense", side_effect=_api_error(400)), \
+         patch("spendguard.server._document_refusal", return_value=None):
         result = server.extract_expense("invoice.pdf", "email", "a@b.example")
 
     assert result["retryable"] is False
@@ -268,6 +309,7 @@ def test_extract_expense_from_text_quota_error_is_retryable_dict():
 def _extract_with(**fields):
     expense = Expense(**fields)
     with patch("spendguard.server._extract_expense", return_value=expense), \
+         patch("spendguard.server._document_refusal", return_value=None), \
          patch("spendguard.server._known_items", return_value=[]):
         return server.extract_expense("photo.jpg", "telegram", "1386120774")
 
