@@ -125,6 +125,29 @@ def test_extract_is_not_stamped(plugin):
     assert plugin.on_pre_tool_call(tool_name=EXTRACT, session_id="s1", turn_id="t1") is None
 
 
+# Greetings
+
+@pytest.mark.parametrize("message", ["اهلا ازيك", "أهلاً، إزيك؟", "السلام عليكم", "hi", "صباح الخير يا باشا"])
+def test_plain_greeting_gets_fixed_egyptian_reply(plugin, message):
+    plugin.on_pre_llm_call(session_id="s1", turn_id="t1", user_message=message)
+
+    assert plugin.on_transform_llm_output("مرحبا، كيف حالك؟", session_id="s1", turn_id="t1") == plugin.GREETING_REPLY
+
+
+@pytest.mark.parametrize("message", ["اهلا، دفعت 3000 جنيه نقل رمل", "تمام", "موافق", "ازيك، صرفنا كام الشهر ده؟"])
+def test_greeting_with_a_request_or_decision_is_left_to_the_agent(plugin, message):
+    plugin.on_pre_llm_call(session_id="s1", turn_id="t1", user_message=message)
+
+    assert plugin.on_transform_llm_output("x", session_id="s1", turn_id="t1") is None
+
+
+def test_tool_reply_in_a_greeting_turn_still_wins(plugin):
+    plugin.on_pre_llm_call(session_id="s1", turn_id="t1", user_message="اهلا")
+    _call(plugin, SAVE, "t1", {"reply_to_owner": "طلب صرف جديد"})
+
+    assert plugin.on_transform_llm_output("x", session_id="s1", turn_id="t1") == "طلب صرف جديد"
+
+
 # Exact replies
 
 def test_finds_reply_in_wrapped_json_result(plugin):

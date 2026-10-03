@@ -18,6 +18,7 @@
 
 import json
 import os
+import re
 import threading
 from typing import Any
 
@@ -38,7 +39,18 @@ NOT_OWNER_MESSAGE = (
     "Blocked: this sender is not the owner, so they cannot approve or reject. "
     "End your turn; the user is told only the owner decides."
 )
-NOT_OWNER_REPLY = "الموافقة والرفض لصاحب الشركة بس. الطلب متسجل ومستني قراره."
+GREETING_REPLY = (
+    "أهلاً بيك! أنا SpendGuard، بساعدك في مصاريف الشغل. ابعتلي صورة الفاتورة أو ملف PDF "
+    "أو فويس نوت بطلب الصرف، أو اسألني مثلاً: صرفنا كام على مشروع التجمع الشهر ده؟"
+)
+# A message made only of these words is small talk; it needs at least one of GREETING_ANCHORS.
+GREETING_ANCHORS = {"اهلا", "اهلين", "ازيك", "ازيكم", "السلام", "سلام", "هاي", "هالو",
+                    "مرحبا", "صباح", "مساء", "hi", "hello", "hey"}
+GREETING_WORDS = GREETING_ANCHORS | {"عليكم", "ورحمه", "الله", "وبركاته", "الخير", "النور", "يا",
+                                     "عامل", "عاملين", "ايه", "اخبارك", "باشا", "بيك", "وسهلا"}
+_ALEF = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ة": "ه", "ى": "ي"})
+
+NOT_OWNER_REPLY ="الموافقة والرفض لصاحب الشركة بس. الطلب متسجل ومستني قراره."
 
 _intake_turns: set[tuple[str, str]] = set()
 _turn_senders: dict[tuple[str, str], str] = {}
@@ -85,12 +97,22 @@ def find_reply(result: Any) -> str | None:
     return None
 
 
+def is_greeting(message: str) -> bool:
+    """"اهلا ازيك", "السلام عليكم", "hi": small talk only, nothing to process."""
+    words = re.findall(r"\w+", re.sub(r"[ً-ْ]", "", (message or "").lower()).translate(_ALEF))
+    return (0 < len(words) <= 6 and all(w in GREETING_WORDS for w in words)
+            and any(w in GREETING_ANCHORS for w in words))
+
+
 def on_pre_llm_call(session_id: str = "", turn_id: str = "", sender_id: Any = "",
-                    platform: str = "", **_: Any) -> None:
-    """Remember who sent this turn's message (empty in the terminal)."""
+                    platform: str = "", user_message: Any = "", **_: Any) -> None:
+    """Remember who sent this turn's message (empty in the terminal). A plain
+    greeting gets a fixed reply: the chat model's own Egyptian Arabic is shaky."""
     with _lock:
         _turn_senders[(session_id, turn_id)] = str(sender_id or "")
         _turn_platforms[(session_id, turn_id)] = platform or ""
+        if isinstance(user_message, str) and is_greeting(user_message):
+            _pending_replies[(session_id, turn_id)] = GREETING_REPLY
 
 
 def _telegram_sender(key: tuple[str, str]) -> str:
