@@ -84,8 +84,16 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
         lines.append(_duplicate_warning(duplicate))
     if anomaly.get("is_anomaly"):
         lines.append(_price_warning(anomaly))
+    if expense.source_file:
+        lines.append(_source_document_line(expense.source_file))
     lines.append("موافق ولا مرفوض؟")
     return "\n".join(lines)
+
+
+def _source_document_line(path: str) -> str:
+    """The MEDIA: tag makes the Hermes gateway attach the file itself (and hide
+    the tag), so the owner sees the original invoice next to the request (F06)."""
+    return f"📎 المستند الأصلي مرفق.\nMEDIA:{path}"
 
 
 def approved_message(expense: Expense, sheet_synced: bool = True) -> str:

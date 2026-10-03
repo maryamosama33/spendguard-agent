@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -30,6 +31,36 @@ def test_save_expense_reply_includes_price_warning(seeded_db):
     assert result["reply_to_owner"].startswith(f"طلب صرف جديد رقم {result['id']} من محمد حسن")
     assert "⚠️ السعر أعلى بـ 20%" in result["reply_to_owner"]
     assert "اتقدمت قبل كده" not in result["reply_to_owner"]  # must not match its own row
+
+
+def test_save_expense_archives_source_document_and_attaches_it(seeded_db, tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DOCUMENTS_DIR", tmp_path / "documents")
+    original = tmp_path / "cache" / "invoice.PDF"
+    original.parent.mkdir()
+    original.write_bytes(b"%PDF-1.4 steel")
+
+    result = server.save_expense(STEEL | {"source_file": str(original)})
+
+    archived = Path(result["source_file"])
+    assert archived.parent == storage.DOCUMENTS_DIR
+    assert archived.read_bytes() == b"%PDF-1.4 steel"
+    assert archived.suffix == ".pdf"
+    assert f"MEDIA:{result['source_file']}" in result["reply_to_owner"]
+    original.unlink()  # the gateway cache is cleaned; the archived copy remains
+    assert archived.exists()
+
+
+def test_archive_document_is_idempotent_and_skips_missing_files(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DOCUMENTS_DIR", tmp_path / "documents")
+    original = tmp_path / "photo.jpg"
+    original.write_bytes(b"jpeg")
+
+    first = storage.archive_document(str(original))
+
+    assert storage.archive_document(first) == first
+    assert len(list(storage.DOCUMENTS_DIR.iterdir())) == 1
+    assert storage.archive_document(str(tmp_path / "gone.jpg")) == str(tmp_path / "gone.jpg")
+    assert storage.archive_document(None) is None
 
 
 def test_save_expense_refuses_incomplete_expense(seeded_db):

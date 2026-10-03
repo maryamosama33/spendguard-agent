@@ -24,6 +24,7 @@ from spendguard.normalize import canonical_name
 from spendguard.query import filter_expenses, summarize
 from spendguard.storage import (
     append_to_sheet,
+    archive_document,
     get_connection,
     get_expense,
     init_db,
@@ -209,7 +210,9 @@ def save_expense(expense: dict) -> dict:
     """Save an expense as pending, awaiting owner approval. Never writes to Sheets.
 
     The result includes "reply_to_owner": the Egyptian Arabic approval request
-    (with any duplicate/price warnings, re-checked here) to send as-is.
+    (with any duplicate/price warnings, re-checked here) to send as-is. The
+    source document is archived under data/documents/ and attached to that
+    reply via a MEDIA: line.
     Refuses to save if required fields are missing, returning
     {"saved": False, "missing_fields", "reply_to_sender"} instead.
 
@@ -221,6 +224,7 @@ def save_expense(expense: dict) -> dict:
     if candidate.missing_fields:
         return _not_saved_missing_fields(candidate)
     candidate.status = "pending"
+    candidate.source_file = archive_document(candidate.source_file)
     conn = get_connection()
     try:
         init_db(conn)

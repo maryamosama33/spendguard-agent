@@ -1,4 +1,6 @@
+import hashlib
 import os
+import shutil
 import sqlite3
 from pathlib import Path
 
@@ -8,6 +10,7 @@ from google.oauth2.service_account import Credentials
 from spendguard.models import Expense
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "spendguard.db"
+DOCUMENTS_DIR = Path(__file__).resolve().parent.parent / "data" / "documents"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS expenses (
@@ -130,6 +133,22 @@ def update_status(
         (status, rejection_reason, expense_id),
     )
     conn.commit()
+
+
+def archive_document(source: str | None) -> str | None:
+    """Copy the original document into data/documents/ (named by content hash,
+    so re-saving the same file is a no-op) and return the copy's path. Chat
+    gateways keep downloads in a cache that may be cleaned; the audit link
+    must outlive it (F06). Returns the input unchanged if the file is gone."""
+    if not source or not Path(source).is_file():
+        return source
+    src = Path(source).resolve()
+    digest = hashlib.sha256(src.read_bytes()).hexdigest()[:16]
+    target = DOCUMENTS_DIR / f"{digest}{src.suffix.lower()}"
+    if not target.exists():
+        DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, target)
+    return str(target)
 
 
 def _sheets_client() -> gspread.Client:

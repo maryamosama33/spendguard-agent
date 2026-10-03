@@ -46,6 +46,12 @@ def test_approval_request_includes_duplicate_warning():
     assert "⚠️ الفاتورة دي اتقدمت قبل كده: SC-1140 بتاريخ 2026-09-10 (معتمدة)." in msg
 
 
+def test_approval_request_attaches_source_document():
+    msg = owner_approval_request(_steel(source_file=r"C:\docs\abc.pdf"), None, NO_ANOMALY)
+
+    assert msg.endswith("📎 المستند الأصلي مرفق.\nMEDIA:C:\\docs\\abc.pdf\nموافق ولا مرفوض؟")
+
+
 def test_missing_fields_question_names_fields_in_arabic():
     sand = Expense(amount=860.0, supplier="النصر للنقل والتوريدات", item="sand transport",
                    missing_fields=["project"])
