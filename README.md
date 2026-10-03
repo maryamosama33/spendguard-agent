@@ -90,6 +90,22 @@ To mirror approved rows to a Sheet, set `GOOGLE_SERVICE_ACCOUNT_FILE` (a
 service-account JSON) and `GOOGLE_SHEET_ID`, and share the Sheet with the
 service account's email.
 
+## It learns from the owner's decisions
+
+The price baseline already follows approved prices. On top of that,
+SpendGuard learns how sensitive the owner is about each item, from their
+decisions alone (no extra AI calls), and says what it learned:
+
+- **Stricter:** the owner rejects, because of the price, an increase
+  SpendGuard didn't flag (e.g. sand transport at +4.5%, "السعر عالي"). From
+  then on that item is flagged above 3%:
+  «💡 اتعلمت: رفضت نقل رمل والزيادة كانت 4.5% بس، فمن دلوقتي هنبهك على نقل رمل لو الزيادة فوق 3%.»
+- **Quieter:** the owner approves two flagged increases in a row (e.g. steel
+  at +20% twice). From then on that item is flagged only above 25%.
+
+Thresholds are replayed from the decision history (`spendguard/learning.py`),
+so they survive restarts and `reset` forgets them.
+
 ## How it works
 
 ```mermaid

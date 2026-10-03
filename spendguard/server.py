@@ -11,6 +11,7 @@ from spendguard.checks import check_price_anomaly as _check_price_anomaly
 from spendguard.checks import find_duplicate, find_resubmission
 from spendguard.decision import owner_decision
 from spendguard.extraction import ExtractionFailed
+from spendguard.learning import Learning, learn_threshold
 from spendguard.extraction import extract_expense as _extract_expense
 from spendguard.extraction import extract_expense_from_text as _extract_expense_from_text
 from spendguard.extraction import find_missing_fields
@@ -19,6 +20,7 @@ from spendguard.messages import (
     already_decided_message,
     approved_message,
     forwarded_owner_request,
+    learning_message,
     missing_fields_question,
     no_pending_message,
     owner_approval_request,
@@ -233,7 +235,29 @@ def _price_check_in_db(candidate: Expense) -> dict:
         history = list_expenses(conn, statuses=["approved"], supplier=candidate.supplier)
     finally:
         conn.close()
-    return _check_price_anomaly(candidate, history)
+    threshold_pct = _learning_for(candidate.item).threshold_pct
+    result = _check_price_anomaly(candidate, history, threshold=threshold_pct / 100)
+    return result | {"threshold_pct": threshold_pct}
+
+
+def _learning_for(item: str | None, exclude_id: int | None = None) -> Learning:
+    """What the owner's decisions on this item taught (optionally as if one
+    decision hadn't happened, to see what it changed)."""
+    conn = get_connection()
+    try:
+        init_db(conn)
+        decided = list_expenses(conn, statuses=["approved", "rejected"])
+    finally:
+        conn.close()
+    return learn_threshold(item, [e for e in decided if e.id != exclude_id])
+
+
+def _learning_note(expense: Expense) -> str | None:
+    """The 💡 line for the owner when this decision changed what SpendGuard flags."""
+    before, after = _learning_for(expense.item, exclude_id=expense.id), _learning_for(expense.item)
+    if after.threshold_pct == before.threshold_pct or after.change is None:
+        return None
+    return learning_message(expense, after)
 
 
 @mcp.tool()
@@ -263,6 +287,8 @@ def save_expense(expense: dict, telegram_sender: str = "") -> dict:
     if earlier := _pending_resubmission(candidate):
         candidate.id = earlier.id
         return _saved_result(candidate, telegram_sender, forward=False) | {"already_saved": True}
+    # Kept with the expense so the owner's decision on it can teach SpendGuard.
+    candidate.price_deviation_pct = _price_check_in_db(candidate)["deviation_pct"]
     conn = get_connection()
     try:
         init_db(conn)
@@ -431,8 +457,14 @@ def approve_expense(expense_id: int | None = None, owner_message: str = "",
 
     expense.status = "approved"
     synced = append_to_sheet(expense)
-    return expense.model_dump() | {"sheet_synced": synced, "reply": approved_message(expense, synced),
+    return expense.model_dump() | {"sheet_synced": synced,
+                                   "reply": _with_note(approved_message(expense, synced), expense),
                                    "requester_notified": _notify_requester(expense, telegram_sender)}
+
+
+def _with_note(reply: str, expense: Expense) -> str:
+    note = _learning_note(expense)
+    return f"{reply}\n{note}" if note else reply
 
 
 @mcp.tool()
@@ -466,7 +498,7 @@ def reject_expense(expense_id: int | None = None, reason: str = "", owner_messag
 
     expense.status = "rejected"
     expense.rejection_reason = reason
-    return expense.model_dump() | {"reply": rejected_message(expense),
+    return expense.model_dump() | {"reply": _with_note(rejected_message(expense), expense),
                                    "requester_notified": _notify_requester(expense, telegram_sender)}
 
 

@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS expenses (
     sender TEXT,
     source_file TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
-    rejection_reason TEXT
+    rejection_reason TEXT,
+    price_deviation_pct REAL
 );
 """
 
@@ -46,7 +47,7 @@ SHEET_COLUMNS = [
 ]
 
 # Columns added after the first release; init_db adds them to older databases.
-ADDED_COLUMNS = {"quantity": "REAL", "unit": "TEXT"}
+ADDED_COLUMNS = {"quantity": "REAL", "unit": "TEXT", "price_deviation_pct": "REAL"}
 
 
 def get_connection() -> sqlite3.Connection:

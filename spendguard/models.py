@@ -28,4 +28,5 @@ class Expense(ExtractedFields):
     source_file: str | None = None
     status: str = "pending"  # pending | approved | rejected
     rejection_reason: str | None = None
+    price_deviation_pct: float | None = None  # vs recent purchases when saved; for learning
     id: int | None = None

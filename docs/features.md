@@ -44,3 +44,4 @@
 - F21 Proactive payment reminders.
 - F22 Cash-flow forecast.
 - F24 Automatic weekly summary.
+- F27 Learns from owner decisions (built, branch phase-2): each item's price-warning threshold adapts to the owner's approvals and price rejections, and the owner is told what was learned.
