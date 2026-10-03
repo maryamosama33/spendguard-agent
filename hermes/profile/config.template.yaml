@@ -78,6 +78,11 @@ mcp_servers:
       resources: false
       prompts: false
 
+# `scripts/spendguard.py bot` runs this profile's own Telegram gateway; Hermes
+# refuses a named profile's gateway unless it is marked standalone (one bot
+# token, one poller: don't also serve it from a host gateway).
+gateway:
+  standalone: true
 {{GATEWAY_ADMINS}}
 # Only SpendGuard's tools (F26): no terminal/file/web/browser built-ins. An
 # empty list leaves just the MCP server's tools. Equivalent:

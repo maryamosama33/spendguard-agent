@@ -26,9 +26,9 @@ SOUL_SRC = REPO_ROOT / "hermes" / "SOUL.md"
 HERMES_KEYS = ["GROQ_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS",
                "TELEGRAM_HOME_CHANNEL", "SPENDGUARD_OWNER_IDS"]
 
-GATEWAY_ADMINS_TEMPLATE = """# Owners (SPENDGUARD_OWNER_IDS) get every slash command; other allowed users
-# only /help and /whoami (F26). Approving/rejecting is owner-only too (plugin).
-gateway:
+# Rendered inside the config's `gateway:` section.
+GATEWAY_ADMINS_TEMPLATE = """  # Owners (SPENDGUARD_OWNER_IDS) get every slash command; other allowed users
+  # only /help and /whoami (F26). Approving/rejecting is owner-only too (plugin).
   platforms:
     telegram:
       extra:
