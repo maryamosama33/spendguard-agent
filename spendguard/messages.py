@@ -130,6 +130,15 @@ def unclear_decision_message(expense_id: int) -> str:
             f"ابعت «موافق {expense_id}» أو «ارفض {expense_id}» والسبب.")
 
 
+def no_pending_message() -> str:
+    return "مفيش طلبات مستنية موافقتك دلوقتي."
+
+
+def already_decided_message(expense: Expense) -> str:
+    decided = {"approved": "اتعتمد", "rejected": "اترفض"}.get(expense.status, expense.status)
+    return f"طلب رقم {expense.id} {decided} قبل كده."
+
+
 def which_expense_message(pending_ids: list[int]) -> str:
     ids = "، ".join(str(i) for i in pending_ids)
     return f"فيه أكتر من طلب مستني موافقتك ({ids}). ابعت رقم الطلب، مثلاً: موافق {pending_ids[0]}"

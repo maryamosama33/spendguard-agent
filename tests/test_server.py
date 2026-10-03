@@ -158,8 +158,44 @@ def test_owner_approval_writes_sheet_once(seeded_db):
         second = server.approve_expense(saved["id"], owner_message="موافق")
 
     assert first["status"] == "approved"
-    assert second["decided"] is False and "already approved" in second["error"]
+    assert second["decided"] is False
     sheet.assert_called_once()
+
+
+def test_repeat_decision_naming_the_request_says_already_decided(seeded_db):
+    saved = server.save_expense(STEEL)
+    with patch("spendguard.server.append_to_sheet", return_value=False):
+        server.approve_expense(saved["id"], f"موافق {saved['id']}")
+
+    again = server.approve_expense(saved["id"], f"موافق {saved['id']}")
+
+    assert again["reply"] == f"طلب رقم {saved['id']} اتعتمد قبل كده."
+
+
+def test_owner_approves_without_number_when_one_request_pending(seeded_db):
+    # The request was pushed to the owner's chat, so the model there knows no id.
+    saved = server.save_expense(STEEL)
+
+    with patch("spendguard.server.append_to_sheet", return_value=False):
+        result = server.approve_expense(owner_message="موافق")
+
+    assert result["id"] == saved["id"] and result["status"] == "approved"
+
+
+def test_invented_id_is_ignored_for_the_only_pending_request(seeded_db):
+    saved = server.save_expense(STEEL)
+
+    result = server.reject_expense(expense_id=1, owner_message="ارفضه")  # 1 is an approved seed row
+
+    assert result["id"] == saved["id"] and result["status"] == "rejected"
+    assert result["rejection_reason"] == "ارفضه"
+
+
+def test_decision_with_nothing_pending_says_so(seeded_db):
+    result = server.approve_expense(owner_message="موافق")
+
+    assert result["decided"] is False
+    assert result["reply"] == "مفيش طلبات مستنية موافقتك دلوقتي."
 
 
 def test_approve_refused_when_owner_said_no(seeded_db):

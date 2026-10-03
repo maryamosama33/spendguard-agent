@@ -16,9 +16,11 @@ from spendguard.extraction import extract_expense_from_text as _extract_expense_
 from spendguard.extraction import find_missing_fields
 from spendguard import notify
 from spendguard.messages import (
+    already_decided_message,
     approved_message,
     forwarded_owner_request,
     missing_fields_question,
+    no_pending_message,
     owner_approval_request,
     rejected_message,
     requester_decision_message,
@@ -326,7 +328,8 @@ def _decision_refusal(expense: Expense | None, owner_message: str, wanted: str) 
     if expense is None:
         return {"error": "No such expense id.", "decided": False}
     if expense.status != "pending":
-        return {"error": f"Expense {expense.id} is already {expense.status}.", "decided": False}
+        return {"error": f"Expense {expense.id} is already {expense.status}.", "decided": False,
+                "reply": already_decided_message(expense)}
     if refusal := _wrong_expense_refusal(expense.id, owner_message):
         return refusal
     if owner_decision(owner_message) != wanted:
@@ -379,17 +382,44 @@ def _load_expense(expense_id: int) -> Expense | None:
         conn.close()
 
 
+def _resolve_expense_id(expense_id: int | None, owner_message: str) -> int | dict:
+    """The request the owner means. The owner's chat may not hold the request
+    (it was pushed to them), so "موافق" alone means the only pending one, and a
+    number in their message names it. Otherwise a refusal with the question."""
+    pending = _pending_ids()
+    numbers = {int(n) for n in re.findall(r"\d+", owner_message or "")}
+    # The model's id only if it is pending or the owner said it: models invent numbers.
+    if expense_id is not None and (expense_id in pending or expense_id in numbers):
+        return expense_id
+    named = numbers & set(pending)
+    if len(named) == 1:
+        return named.pop()
+    if not pending:
+        return {"error": "No expense is pending.", "decided": False, "reply": no_pending_message()}
+    if len(pending) == 1 and not named:
+        return pending[0]
+    return {"error": "Several expenses are pending and the owner named none.",
+            "decided": False, "reply": which_expense_message(pending)}
+
+
 @mcp.tool()
-def approve_expense(expense_id: int, owner_message: str, telegram_sender: str = "") -> dict:
+def approve_expense(expense_id: int | None = None, owner_message: str = "",
+                    telegram_sender: str = "") -> dict:
     """Approve a pending expense: marks it approved and writes the row to Google Sheets.
+    Call it whenever the owner's message approves ("موافق", "ماشي", "موافق 12"),
+    even if you don't know which request: the tool works it out.
 
     Args:
-        expense_id: the request number the owner gave (e.g. 12 in "موافق 12"),
-            or the id returned by save_expense.
-        owner_message: the owner's reply, word for word (e.g. "موافق 12").
-            Refused unless it explicitly approves this request.
+        expense_id: the request number if the owner gave one (12 in "موافق 12");
+            otherwise leave it empty.
+        owner_message: the owner's reply, word for word. Refused unless it
+            explicitly approves.
         telegram_sender: set by the system; leave it empty.
     """
+    resolved = _resolve_expense_id(expense_id, owner_message)
+    if isinstance(resolved, dict):
+        return resolved
+    expense_id = resolved
     expense = _load_expense(expense_id)
     if refusal := _decision_refusal(expense, owner_message, "approve"):
         return refusal
@@ -406,17 +436,25 @@ def approve_expense(expense_id: int, owner_message: str, telegram_sender: str = 
 
 
 @mcp.tool()
-def reject_expense(expense_id: int, reason: str, owner_message: str, telegram_sender: str = "") -> dict:
+def reject_expense(expense_id: int | None = None, reason: str = "", owner_message: str = "",
+                   telegram_sender: str = "") -> dict:
     """Reject a pending expense and record the reason. Never writes to Sheets.
+    Call it whenever the owner's message rejects ("ارفض", "مرفوض", "ارفض 12"),
+    even if you don't know which request: the tool works it out.
 
     Args:
-        expense_id: the request number the owner gave (e.g. 12 in "ارفض 12"),
-            or the id returned by save_expense.
-        reason: why the owner rejected it.
+        expense_id: the request number if the owner gave one (12 in "ارفض 12");
+            otherwise leave it empty.
+        reason: why the owner rejected it (their words if they gave none).
         owner_message: the owner's reply, word for word (e.g. "ارفض 12، السعر
-            عالي"). Refused unless it explicitly rejects this request.
+            عالي"). Refused unless it explicitly rejects.
         telegram_sender: set by the system; leave it empty.
     """
+    resolved = _resolve_expense_id(expense_id, owner_message)
+    if isinstance(resolved, dict):
+        return resolved
+    expense_id = resolved
+    reason = reason or owner_message
     expense = _load_expense(expense_id)
     if refusal := _decision_refusal(expense, owner_message, "reject"):
         return refusal
