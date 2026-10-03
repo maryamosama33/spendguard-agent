@@ -108,10 +108,10 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
 
 
 def forwarded_owner_request(expense: Expense, duplicate: Expense | None, anomaly: dict) -> str:
-    """The approval request pushed to the owner's own chat. A bare "موافق" is
+    """The approval request pushed to the owner's own chat, without the file
+    line (the file is attached to the message itself). A bare "موافق" is
     enough: the decision tools find the request (and ask if several wait)."""
-    return (owner_approval_request(expense, duplicate, anomaly, source="none")
-            + "\nرد بـ «موافق» أو «ارفض» والسبب.")
+    return owner_approval_request(expense, duplicate, anomaly, source="none")
 
 
 def sent_to_owner_message(expense: Expense) -> str:

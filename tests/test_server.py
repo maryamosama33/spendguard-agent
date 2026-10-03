@@ -247,7 +247,7 @@ def test_engineer_request_is_forwarded_to_owner_chat(seeded_db, telegram):
     result = server.save_expense(STEEL | {"sender": "made up by the model"}, telegram_sender=ENGINEER)
 
     [(text, _)] = telegram["owners"]
-    assert text.endswith("رد بـ «موافق» أو «ارفض» والسبب.") and "⚠️ السعر أعلى" in text
+    assert text.endswith("موافق ولا مرفوض؟") and "⚠️ السعر أعلى" in text
     assert f"رقم {result['id']}" in text  # the number is still in the request's first line
     assert "MEDIA:" not in text
     assert "reply_to_owner" not in result
