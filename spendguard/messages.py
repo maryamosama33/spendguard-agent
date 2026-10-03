@@ -6,6 +6,7 @@ the same on every run instead of depending on how the model phrases them.
 
 from pathlib import Path
 
+from spendguard.learning import DEFAULT_THRESHOLD_PCT, Learning
 from spendguard.models import Expense
 
 ITEM_AR = {
@@ -82,8 +83,35 @@ def _price_warning(anomaly: dict) -> str:
     pct, average = f"{anomaly['deviation_pct']:g}%", _money(anomaly["average_price"])
     if anomaly.get("basis") == "unit_price":
         unit = UNIT_AR.get((anomaly.get("unit") or "").lower(), "وحدة")
-        return f"⚠️ سعر ال{unit} أعلى بـ {pct} من متوسط آخر {times} مرات ({average} لل{unit})."
-    return f"⚠️ السعر أعلى بـ {pct} من متوسط آخر {times} مرات ({average})."
+        warning = f"⚠️ سعر ال{unit} أعلى بـ {pct} من متوسط آخر {times} مرات ({average} لل{unit})."
+    else:
+        warning = f"⚠️ السعر أعلى بـ {pct} من متوسط آخر {times} مرات ({average})."
+    return warning + _learned_threshold_note(anomaly)
+
+
+def _cheaper_supplier_line(offer: dict) -> str:
+    unit = UNIT_AR.get((offer.get("unit") or "").lower(), "وحدة")
+    return (f"💡 مورد أرخص: {offer['supplier']} متوسط سعره {_money(offer['unit_price'])} لل{unit} "
+            f"(أرخص بـ {offer['saving_pct']:g}%).")
+
+
+def _learned_threshold_note(anomaly: dict) -> str:
+    learned = anomaly.get("threshold_pct")
+    if learned is None or learned == DEFAULT_THRESHOLD_PCT:
+        return ""
+    return f" (حد التنبيه {learned:g}% اتعلمته من قراراتك)"
+
+
+def learning_message(expense: Expense, learning: Learning) -> str:
+    """What the owner's decision just taught SpendGuard about this item."""
+    item, limit = _item(expense) or "الصنف ده", f"{learning.threshold_pct:g}%"
+    if learning.change == "stricter":
+        seen = f"{learning.evidence[0]:g}%"
+        return (f"💡 اتعلمت: رفضت {item} والزيادة كانت {seen} بس، "
+                f"فمن دلوقتي هنبهك على {item} لو الزيادة فوق {limit}.")
+    seen = " و".join(f"{d:g}%" for d in learning.evidence)
+    return (f"💡 اتعلمت: وافقت على آخر زيادتين في {item} ({seen})، "
+            f"فمن دلوقتي هنبهك على {item} بس لو الزيادة فوق {limit}.")
 
 
 def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly: dict,
@@ -99,6 +127,8 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
         lines.append(_duplicate_warning(duplicate))
     if anomaly.get("is_anomaly"):
         lines.append(_price_warning(anomaly))
+    if anomaly.get("cheaper_supplier"):
+        lines.append(_cheaper_supplier_line(anomaly["cheaper_supplier"]))
     if expense.source_file and source == "attach":
         lines.append(_source_document_line(expense.source_file))
     elif expense.source_file and source == "note":
@@ -128,6 +158,40 @@ def requester_decision_message(expense: Expense) -> str:
 def unclear_decision_message(expense_id: int) -> str:
     return (f"مش واضح إذا كنت موافق ولا رافض طلب رقم {expense_id}. "
             f"ابعت «موافق {expense_id}» أو «ارفض {expense_id}» والسبب.")
+
+
+MONTHS_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس",
+             "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+
+
+def _month_ar(month: str) -> str:
+    year, number = month.split("-")
+    return f"{MONTHS_AR[int(number) - 1]} {year}"
+
+
+def _counted(n: int, one: str, two: str, few: str, many: str) -> str:
+    """Arabic number agreement: فاتورة واحدة، فاتورتين، 3 فواتير، 11 فاتورة."""
+    if n == 1:
+        return one
+    if n == 2:
+        return two
+    return f"{n} {few if n <= 10 else many}"
+
+
+def savings_message(summary: dict) -> str:
+    month = _month_ar(summary["month"])
+    if not summary["total_saved"]:
+        return f"لسه مفيش توفير متسجل في {month}."
+    parts = []
+    duplicates, overpricing = summary["duplicates"], summary["overpricing"]
+    if duplicates["count"]:
+        what = _counted(duplicates["count"], "فاتورة مكررة واحدة", "فاتورتين مكررين", "فواتير مكررة", "فاتورة مكررة")
+        parts.append(f"{what} اترفضت ({_money(duplicates['amount'])})")
+    if overpricing["count"]:
+        what = _counted(overpricing["count"], "زيادة سعر واحدة", "زيادتين في الأسعار", "زيادات في الأسعار",
+                        "زيادة في الأسعار")
+        parts.append(f"{what} اترفضت ({_money(overpricing['amount'])} فرق سعر)")
+    return f"💰 في {month} SpendGuard وفّرلك {_money(summary['total_saved'])}: " + " و".join(parts) + "."
 
 
 def no_pending_message() -> str:

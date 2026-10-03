@@ -33,8 +33,8 @@
 
 ## Phase 2 (out of scope unless asked)
 
-- F12 Supplier comparison — suggest cheaper suppliers for the same item.
-- F13 Monthly savings report — total value of price discrepancies/duplicates caught per month.
+- F12 Supplier comparison — suggest cheaper suppliers for the same item (built, branch phase-2).
+- F13 Monthly savings report — total value of price discrepancies/duplicates caught per month (built, branch phase-2).
 - F15 Amount-based approval routing.
 - F16 Pending-approval reminders.
 - F17 Audit trail (who requested/approved/when).
@@ -44,3 +44,4 @@
 - F21 Proactive payment reminders.
 - F22 Cash-flow forecast.
 - F24 Automatic weekly summary.
+- F27 Learns from owner decisions (built, branch phase-2): each item's price-warning threshold adapts to the owner's approvals and price rejections, and the owner is told what was learned.

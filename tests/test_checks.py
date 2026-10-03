@@ -1,4 +1,4 @@
-from spendguard.checks import check_price_anomaly, find_duplicate, find_resubmission
+from spendguard.checks import check_price_anomaly, cheaper_supplier, find_duplicate, find_resubmission
 from spendguard.models import Expense
 
 
@@ -182,6 +182,35 @@ def test_different_unit_falls_back_to_totals():
     result = check_price_anomaly(_tons(18000.0, 18000, unit="kg"), STEEL_HISTORY)
 
     assert result["basis"] == "total"
+
+
+def _offer(supplier: str, amount: float, quantity: float = 1, unit: str = "ton", date: str = "2026-09-01") -> Expense:
+    return _expense(supplier=supplier, amount=amount, quantity=quantity, unit=unit, item="steel", date=date)
+
+
+def test_cheapest_other_supplier_suggested_per_unit():
+    history = [_offer("Delta", 30600.0, quantity=2), _offer("Delta", 15400.0), _offer("Nile", 16000.0)]
+    candidate = _offer("National", 18000.0)
+
+    offer = cheaper_supplier(candidate, history)
+
+    assert offer == {"supplier": "Delta", "unit_price": 15350.0, "unit": "ton", "saving_pct": 14.7}
+
+
+def test_no_suggestion_when_others_are_not_meaningfully_cheaper():
+    assert cheaper_supplier(_offer("National", 15500.0), [_offer("Delta", 15000.0)]) is None  # 3.2%
+
+
+def test_no_suggestion_without_quantities_or_in_another_unit():
+    totals_only = _expense(supplier="National", amount=18000.0, item="steel")
+    assert cheaper_supplier(totals_only, [_offer("Delta", 15000.0)]) is None
+    assert cheaper_supplier(_offer("National", 18000.0), [_offer("Delta", 15.0, unit="kg")]) is None
+
+
+def test_own_supplier_and_other_items_are_not_suggestions():
+    history = [_offer("National", 10000.0), _expense(supplier="Delta", amount=100.0, quantity=1, unit="ton", item="cement")]
+
+    assert cheaper_supplier(_offer("National", 18000.0), history) is None
 
 
 def test_price_anomaly_no_history_is_not_anomalous():

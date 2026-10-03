@@ -16,7 +16,7 @@ hackathon.
 
 | Document | What SpendGuard does |
 |---|---|
-| `steel_invoice_overpriced.pdf` | ⚠️ Price per ton is 20% above the average of the last 3 purchases → owner decides |
+| `steel_invoice_overpriced.pdf` | ⚠️ Price per ton is 20% above the average of the last 3 purchases, and 💡 another supplier sells it 15% cheaper → owner decides |
 | `sand_transport_form.png` (handwritten) | Reads the handwriting, asks the sender which project it is for |
 | `cement_invoice_resubmitted.png` | ⚠️ Invoice SC-1140 was already submitted (now sent by someone else) |
 | `blurry_receipt.png` | Asks for a clearer photo instead of guessing the numbers |
@@ -90,6 +90,29 @@ To mirror approved rows to a Sheet, set `GOOGLE_SERVICE_ACCOUNT_FILE` (a
 service-account JSON) and `GOOGLE_SHEET_ID`, and share the Sheet with the
 service account's email.
 
+## It reports the money it saved
+
+Ask «وفرنا كام الشهر ده؟» and SpendGuard totals what the owner's rejections
+saved this month: rejected duplicates count in full, rejected overpriced
+requests count only the overcharge (18,000 at +20% saved 3,000):
+«💰 في أكتوبر 2026 SpendGuard وفّرلك 4,220 جنيه: فاتورة مكررة واحدة اترفضت (1,220 جنيه) وزيادة سعر واحدة اترفضت (3,000 جنيه فرق سعر).»
+
+## It learns from the owner's decisions
+
+The price baseline already follows approved prices. On top of that,
+SpendGuard learns how sensitive the owner is about each item, from their
+decisions alone (no extra AI calls), and says what it learned:
+
+- **Stricter:** the owner rejects, because of the price, an increase
+  SpendGuard didn't flag (e.g. sand transport at +4.5%, "السعر عالي"). From
+  then on that item is flagged above 3%:
+  «💡 اتعلمت: رفضت نقل رمل والزيادة كانت 4.5% بس، فمن دلوقتي هنبهك على نقل رمل لو الزيادة فوق 3%.»
+- **Quieter:** the owner approves two flagged increases in a row (e.g. steel
+  at +20% twice). From then on that item is flagged only above 25%.
+
+Thresholds are replayed from the decision history (`spendguard/learning.py`),
+so they survive restarts and `reset` forgets them.
+
 ## How it works
 
 ```mermaid
@@ -105,10 +128,10 @@ flowchart LR
   voice notes (Groq Whisper, Arabic) and calls SpendGuard's tools. Its config,
   persona (`hermes/SOUL.md`) and guardrails plugin ship as a Hermes profile in
   `hermes/` and are installed by `scripts/spendguard.py setup`.
-- **SpendGuard** (`spendguard/`) is a Python MCP server with 8 tools:
+- **SpendGuard** (`spendguard/`) is a Python MCP server with 9 tools:
   `extract_expense`, `extract_expense_from_text`, `check_duplicate`,
   `check_price_anomaly`, `save_expense`, `approve_expense`, `reject_expense`,
-  `query_expenses`.
+  `query_expenses`, `savings_report`.
 
 Guarantees live in code, not in the prompt, because chat models drift:
 

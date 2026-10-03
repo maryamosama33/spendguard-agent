@@ -214,6 +214,14 @@ def test_seeded_steel_price_compared_per_ton(seeded_db):
     assert "⚠️ سعر الطن أعلى بـ 20%" in result["reply_to_owner"]
 
 
+def test_overpriced_steel_request_suggests_the_cheaper_seeded_supplier(seeded_db):
+    result = server.save_expense(STEEL | {"quantity": 1, "unit": "ton"})
+
+    assert ("💡 مورد أرخص: مجموعة حديد الدلتا متوسط سعره 15,267 جنيه للطن (أرخص بـ 15.2%)."
+            in result["reply_to_owner"])
+    assert result["reply_to_owner"].endswith("موافق ولا مرفوض؟")
+
+
 def test_two_tons_at_the_usual_price_raise_no_warning(seeded_db):
     result = server.save_expense(STEEL | {"quantity": 2, "unit": "ton", "amount": 30000.0})
 
@@ -225,6 +233,71 @@ def test_query_with_short_project_name_finds_its_spending(seeded_db):
 
     assert result["filters"]["project"] == "فيلات التجمع الخامس"
     assert result["count"] > 0
+
+
+SAND = dict(
+    date="2026-10-01", amount=860.0, quantity=1, unit="trip", supplier="النصر للنقل والتوريدات",
+    project="فيلات التجمع الخامس", cost_item="transport", item="sand transport", requester="محمد حسن",
+)
+
+
+def test_owner_rejecting_a_small_increase_for_price_makes_spendguard_stricter(seeded_db):
+    first = server.save_expense(SAND | {"invoice_number": "NT-401"})
+    assert "⚠️" not in first["reply_to_owner"]  # +4.5%: under the default 15%
+
+    result = server.reject_expense(owner_message="ارفض، السعر عالي")
+
+    assert result["reply"].endswith("💡 اتعلمت: رفضت نقل رمل والزيادة كانت 4.5% بس، "
+                                    "فمن دلوقتي هنبهك على نقل رمل لو الزيادة فوق 3%.")
+    again = server.save_expense(SAND | {"invoice_number": "NT-402", "date": "2026-10-02"})
+    assert "⚠️ سعر النقلة أعلى بـ 4.5%" in again["reply_to_owner"]
+    assert "(حد التنبيه 3% اتعلمته من قراراتك)" in again["reply_to_owner"]
+
+
+def test_owner_approving_two_increases_makes_spendguard_quieter(seeded_db):
+    steel = STEEL | {"quantity": 1, "unit": "ton"}
+    with patch("spendguard.server.append_to_sheet", return_value=False):
+        server.save_expense(steel)
+        first = server.approve_expense(owner_message="موافق")
+        server.save_expense(steel | {"invoice_number": "NSF-2250", "date": "2026-10-02", "amount": 19300.0})
+        second = server.approve_expense(owner_message="موافق")
+
+    assert "💡" not in first["reply"]
+    assert "💡 اتعلمت: وافقت على آخر زيادتين في حديد تسليح 12 مم (20% و20.1%)" in second["reply"]
+    assert "فوق 25%" in second["reply"]
+
+
+def test_rejection_without_a_price_reason_teaches_nothing(seeded_db):
+    server.save_expense(SAND | {"invoice_number": "NT-401"})
+
+    result = server.reject_expense(owner_message="ارفض، مش لمشروعنا")
+
+    assert "💡" not in result["reply"]
+
+
+CEMENT_AGAIN = dict(
+    date="2026-09-10", amount=1220.0, quantity=1, unit="ton", supplier="شركة أسمنت السويس",
+    project="مستودع 6 أكتوبر", cost_item="materials", item="cement", requester="أحمد علي",
+    invoice_number="SC-1140",
+)
+
+
+def test_savings_report_after_rejecting_a_duplicate_and_an_overprice(seeded_db):
+    with patch("spendguard.server.append_to_sheet", return_value=False):
+        cement = server.save_expense(CEMENT_AGAIN)
+        server.reject_expense(cement["id"], "مكررة", f"ارفض {cement['id']} مكررة")
+        steel = server.save_expense(STEEL | {"quantity": 1, "unit": "ton"})
+        server.reject_expense(steel["id"], "السعر عالي", f"ارفض {steel['id']} السعر عالي")
+
+    report = server.savings_report()
+
+    assert cement["duplicate_of"] is not None
+    assert report["total_saved"] == 4220.0  # 1,220 duplicate + 3,000 overcharge on 18,000 at +20%
+    assert "SpendGuard وفّرلك 4,220 جنيه" in report["reply"]
+
+
+def test_savings_report_for_a_month_without_rejections(seeded_db):
+    assert server.savings_report("2026-01")["reply"] == "لسه مفيش توفير متسجل في يناير 2026."
 
 
 OWNER, ENGINEER = "1386120774", "555"

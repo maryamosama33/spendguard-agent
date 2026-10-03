@@ -1,5 +1,6 @@
 import hashlib
 import os
+from datetime import date
 import shutil
 import sqlite3
 from pathlib import Path
@@ -35,7 +36,10 @@ CREATE TABLE IF NOT EXISTS expenses (
     sender TEXT,
     source_file TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
-    rejection_reason TEXT
+    rejection_reason TEXT,
+    price_deviation_pct REAL,
+    duplicate_of INTEGER,
+    decided_at TEXT
 );
 """
 
@@ -46,7 +50,8 @@ SHEET_COLUMNS = [
 ]
 
 # Columns added after the first release; init_db adds them to older databases.
-ADDED_COLUMNS = {"quantity": "REAL", "unit": "TEXT"}
+ADDED_COLUMNS = {"quantity": "REAL", "unit": "TEXT", "price_deviation_pct": "REAL",
+                 "duplicate_of": "INTEGER", "decided_at": "TEXT"}
 
 
 def get_connection() -> sqlite3.Connection:
@@ -145,8 +150,8 @@ def update_status(
     rejection_reason: str | None = None,
 ) -> None:
     conn.execute(
-        "UPDATE expenses SET status = ?, rejection_reason = ? WHERE id = ?",
-        (status, rejection_reason, expense_id),
+        "UPDATE expenses SET status = ?, rejection_reason = ?, decided_at = ? WHERE id = ?",
+        (status, rejection_reason, date.today().isoformat(), expense_id),
     )
     conn.commit()
 
