@@ -1,10 +1,26 @@
+import re
 from collections.abc import Callable
 
 from spendguard.models import Expense
 
 
+_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+
+
+def invoice_key(number: str | None) -> str:
+    """"SC 1140", "sc-1140" and "SC-١١٤٠" are the same invoice: SC1140."""
+    return re.sub(r"[\W_]", "", (number or "").translate(_DIGITS)).upper()
+
+
+def _compatible_suppliers(a: Expense, b: Expense) -> bool:
+    """Two suppliers can both issue invoice "1001"; only a known, different
+    supplier rules a match out."""
+    return not (a.supplier and b.supplier) or a.supplier == b.supplier
+
+
 def _same_invoice(a: Expense, b: Expense) -> bool:
-    return bool(a.invoice_number) and a.invoice_number == b.invoice_number
+    key = invoice_key(a.invoice_number)
+    return bool(key) and key == invoice_key(b.invoice_number) and _compatible_suppliers(a, b)
 
 
 def _same_supplier_amount_date(a: Expense, b: Expense) -> bool:

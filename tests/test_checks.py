@@ -23,6 +23,25 @@ def test_matches_on_same_invoice_number():
     assert match is not None
 
 
+def test_invoice_number_matches_ignoring_case_spaces_dashes_and_arabic_digits():
+    existing = [_expense(invoice_number="SC-1140")]
+
+    for typed in ["SC 1140", "sc-1140", "SC1140", "SC-١١٤٠"]:
+        assert find_duplicate(_expense(invoice_number=typed, amount=1.0, date="2000-01-01"), existing)
+
+
+def test_same_invoice_number_from_another_supplier_is_not_a_duplicate():
+    candidate = _expense(invoice_number="1001", supplier="Other Co", amount=5.0, date="2026-01-01")
+
+    assert find_duplicate(candidate, [_expense(invoice_number="1001")]) is None
+
+
+def test_same_invoice_number_matches_when_supplier_unknown():
+    candidate = _expense(invoice_number="INV-001", supplier=None)
+
+    assert find_duplicate(candidate, [_expense(invoice_number="INV-001")]) is not None
+
+
 def test_matches_on_supplier_amount_date_without_invoice_number():
     candidate = _expense(invoice_number=None)
     existing = [_expense(invoice_number=None)]
