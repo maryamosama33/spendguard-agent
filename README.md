@@ -66,7 +66,13 @@ restores the demo data between runs.
    other allowed users (site engineers) can submit expenses and ask questions.
 3. `python scripts/spendguard.py setup` again, then `python scripts/spendguard.py bot`
    and keep that window open.
-4. Send the bot an invoice photo, PDF or voice note.
+4. The owner sends the bot `/start` once (a bot can only message people who
+   have messaged it).
+5. A site engineer sends the bot an invoice photo, PDF or voice note. The
+   approval request, with the invoice attached, goes to the owner's own chat;
+   the owner replies `موافق 12` or `ارفض 12 <reason>`, and the engineer is told
+   the decision. (If the owner sends an expense themselves, it is answered in
+   their chat.)
 
 Someone new? They message the bot, get a pairing code, and you run
 `hermes -p spendguard pairing approve telegram <CODE>`.
@@ -104,7 +110,9 @@ Guarantees live in code, not in the prompt, because chat models drift:
 - **The owner decides.** `approve_expense` / `reject_expense` need the owner's
   own explicit reply (approve / reject, in Arabic or English) and only act on
   pending expenses. On Telegram, only senders in `SPENDGUARD_OWNER_IDS` may
-  decide. The Hermes
+  decide, and the plugin passes the verified sender ID to the server, which
+  forwards engineers' requests to the owner and sends decisions back. With
+  several requests pending, the owner must name the request number. The
   plugin also blocks a decision in the same turn an expense arrives.
 - **Never guess.** Missing fields go back to the sender as a question; blurry
   photos are re-requested; `save_expense` refuses incomplete expenses.

@@ -122,6 +122,87 @@ def test_approve_refused_when_owner_said_no(seeded_db):
     sheet.assert_not_called()
 
 
+OWNER, ENGINEER = "1386120774", "555"
+
+
+@pytest.fixture
+def telegram(monkeypatch):
+    """Telegram configured, with the Bot API calls recorded instead of sent."""
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
+    monkeypatch.setenv("SPENDGUARD_OWNER_IDS", OWNER)
+    sent = {"owners": [], "chats": []}
+    monkeypatch.setattr(server.notify, "send_to_owners",
+                        lambda text, document=None: sent["owners"].append((text, document)) or True)
+    monkeypatch.setattr(server.notify, "send_message",
+                        lambda chat, text: sent["chats"].append((chat, text)) or True)
+    return sent
+
+
+def test_engineer_request_is_forwarded_to_owner_chat(seeded_db, telegram):
+    result = server.save_expense(STEEL | {"sender": "made up by the model"}, telegram_sender=ENGINEER)
+
+    [(text, _)] = telegram["owners"]
+    assert f"رد بـ «موافق {result['id']}»" in text and "⚠️ السعر أعلى" in text
+    assert "MEDIA:" not in text
+    assert "reply_to_owner" not in result
+    assert "اتبعت لصاحب الشركة" in result["reply_to_sender"]
+    assert (result["sender"], result["source_channel"]) == (ENGINEER, "telegram")
+
+
+def test_owner_own_request_is_answered_in_place(seeded_db, telegram):
+    result = server.save_expense(STEEL, telegram_sender=OWNER)
+
+    assert telegram["owners"] == []
+    assert result["reply_to_owner"].endswith("موافق ولا مرفوض؟")
+
+
+def test_failed_forward_falls_back_to_reply_in_place(seeded_db, telegram, monkeypatch):
+    monkeypatch.setattr(server.notify, "send_to_owners", lambda text, document=None: False)
+
+    result = server.save_expense(STEEL, telegram_sender=ENGINEER)
+
+    assert "reply_to_owner" in result and "reply_to_sender" not in result
+
+
+def test_owner_decision_is_sent_back_to_engineer(seeded_db, telegram):
+    saved = server.save_expense(STEEL, telegram_sender=ENGINEER)
+
+    with patch("spendguard.server.append_to_sheet", return_value=False):
+        result = server.approve_expense(saved["id"], f"موافق {saved['id']}", telegram_sender=OWNER)
+
+    assert result["requester_notified"] is True
+    assert telegram["chats"] == [(ENGINEER, f"صاحب الشركة وافق على طلبك رقم {saved['id']} (18,000 جنيه).")]
+
+
+def test_decision_without_number_refused_when_several_pending(seeded_db):
+    first = server.save_expense(STEEL)
+    second = server.save_expense(STEEL | {"invoice_number": "NSF-9999", "date": "2026-10-02"})
+
+    result = server.approve_expense(second["id"], "موافق")
+
+    assert result["decided"] is False
+    assert f"({first['id']}، {second['id']})" in result["reply"]
+
+
+def test_decision_refused_when_owner_named_another_request(seeded_db):
+    first = server.save_expense(STEEL)
+    second = server.save_expense(STEEL | {"invoice_number": "NSF-9999", "date": "2026-10-02"})
+
+    result = server.reject_expense(second["id"], "عالي", f"ارفض {first['id']}")
+
+    assert result["decided"] is False
+    assert storage.get_expense(storage.get_connection(), second["id"]).status == "pending"
+
+
+def test_unclear_decision_asks_owner_again(seeded_db):
+    saved = server.save_expense(STEEL)
+
+    result = server.reject_expense(saved["id"], "x", "ماشي بس لا تكررها")
+
+    assert result["decided"] is False
+    assert f"«ارفض {saved['id']}»" in result["reply"]
+
+
 def test_save_expense_reply_warns_on_resubmitted_invoice(seeded_db):
     server.save_expense(STEEL)
 

@@ -21,7 +21,8 @@ def plugin():
 
 def _call(plugin, tool, turn, result=None, session="s1"):
     """Simulate Hermes running one tool: pre hook, then (if not blocked) post hook."""
-    blocked = plugin.on_pre_tool_call(tool_name=tool, session_id=session, turn_id=turn)
+    directive = plugin.on_pre_tool_call(tool_name=tool, session_id=session, turn_id=turn)
+    blocked = directive if directive and directive["action"] == "block" else None
     if blocked is None:
         plugin.on_post_tool_call(tool_name=tool, result=json.dumps(result or {}),
                                  session_id=session, turn_id=turn)
@@ -100,6 +101,28 @@ def test_other_session_not_blocked(plugin):
     _call(plugin, SAVE, "t1", session="engineer-chat")
 
     assert _call(plugin, APPROVE, "t1", session="owner-chat") is None
+
+
+# Verified sender
+
+def test_telegram_sender_stamped_on_save_whatever_the_model_passed(plugin):
+    plugin.on_pre_llm_call(session_id="s1", turn_id="t1", sender_id=555, platform="telegram")
+
+    directive = plugin.on_pre_tool_call(tool_name=SAVE, session_id="s1", turn_id="t1")
+
+    assert directive == {"action": "modify", "args": {"telegram_sender": "555"}}
+
+
+def test_terminal_turn_stamps_empty_sender(plugin):
+    plugin.on_pre_llm_call(session_id="s1", turn_id="t1", sender_id="", platform="cli")
+
+    directive = plugin.on_pre_tool_call(tool_name=APPROVE, session_id="s1", turn_id="t1")
+
+    assert directive == {"action": "modify", "args": {"telegram_sender": ""}}
+
+
+def test_extract_is_not_stamped(plugin):
+    assert plugin.on_pre_tool_call(tool_name=EXTRACT, session_id="s1", turn_id="t1") is None
 
 
 # Exact replies

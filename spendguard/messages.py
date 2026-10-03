@@ -74,7 +74,8 @@ def _price_warning(anomaly: dict) -> str:
             f"{min(anomaly['compared_count'], 3)} مرات ({_money(anomaly['average_price'])}).")
 
 
-def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly: dict) -> str:
+def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly: dict,
+                           attach_source: bool = True) -> str:
     who = f" من {expense.requester}" if expense.requester else ""
     project = f" لمشروع {expense.project}" if expense.project else ""
     invoice = _invoice_line(expense)
@@ -84,10 +85,38 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
         lines.append(_duplicate_warning(duplicate))
     if anomaly.get("is_anomaly"):
         lines.append(_price_warning(anomaly))
-    if expense.source_file:
+    if attach_source and expense.source_file:
         lines.append(_source_document_line(expense.source_file))
     lines.append("موافق ولا مرفوض؟")
     return "\n".join(lines)
+
+
+def forwarded_owner_request(expense: Expense, duplicate: Expense | None, anomaly: dict) -> str:
+    """The approval request pushed to the owner's own chat: that chat has no
+    context, so the owner replies with the request number."""
+    return (owner_approval_request(expense, duplicate, anomaly, attach_source=False)
+            + f"\nرد بـ «موافق {expense.id}» أو «ارفض {expense.id}» والسبب.")
+
+
+def sent_to_owner_message(expense: Expense) -> str:
+    return (f"تمام، طلبك رقم {expense.id} ({_what(expense)}) اتبعت لصاحب الشركة. "
+            "هبلغك هنا أول ما يرد.")
+
+
+def requester_decision_message(expense: Expense) -> str:
+    if expense.status == "approved":
+        return f"صاحب الشركة وافق على طلبك رقم {expense.id} ({_money(expense.amount)})."
+    return f"صاحب الشركة رفض طلبك رقم {expense.id}. السبب: {expense.rejection_reason}"
+
+
+def unclear_decision_message(expense_id: int) -> str:
+    return (f"مش واضح إذا كنت موافق ولا رافض طلب رقم {expense_id}. "
+            f"ابعت «موافق {expense_id}» أو «ارفض {expense_id}» والسبب.")
+
+
+def which_expense_message(pending_ids: list[int]) -> str:
+    ids = "، ".join(str(i) for i in pending_ids)
+    return f"فيه أكتر من طلب مستني موافقتك ({ids}). ابعت رقم الطلب، مثلاً: موافق {pending_ids[0]}"
 
 
 def _source_document_line(path: str) -> str:

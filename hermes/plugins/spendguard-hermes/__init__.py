@@ -6,7 +6,11 @@
    message; and, when SPENDGUARD_OWNER_IDS is set, only if that message's
    sender is an owner (others get NOT_OWNER_REPLY). Turns without a sender ID
    (the terminal demo) are not restricted by sender.
-2. Exact replies. SpendGuard tools put the message for the user in
+2. Verified sender. save_expense / approve_expense / reject_expense get the
+   real Telegram sender ID as "telegram_sender" (empty elsewhere), whatever
+   the model passed, so SpendGuard can forward an engineer's request to the
+   owner's chat and send the decision back.
+3. Exact replies. SpendGuard tools put the message for the user in
    "reply_to_sender", "reply_to_owner" or "reply". Chat models tend to wrap it
    in their own (formal, sometimes English) report, so the last such text seen
    in a turn replaces the turn's final reply.
@@ -21,6 +25,7 @@ TOOL_PREFIX = "mcp__spendguard__"
 INTAKE_TOOLS = {TOOL_PREFIX + name for name in
                 ("extract_expense", "extract_expense_from_text", "save_expense")}
 DECISION_TOOLS = {TOOL_PREFIX + "approve_expense", TOOL_PREFIX + "reject_expense"}
+SENDER_STAMPED_TOOLS = DECISION_TOOLS | {TOOL_PREFIX + "save_expense"}
 REPLY_KEYS = ("reply_to_sender", "reply_to_owner", "reply")
 
 BLOCK_MESSAGE = (
@@ -37,6 +42,7 @@ NOT_OWNER_REPLY = "الموافقة والرفض لصاحب الشركة بس. �
 
 _intake_turns: set[tuple[str, str]] = set()
 _turn_senders: dict[tuple[str, str], str] = {}
+_turn_platforms: dict[tuple[str, str], str] = {}
 _pending_replies: dict[tuple[str, str], str] = {}
 _lock = threading.Lock()
 
@@ -80,23 +86,30 @@ def find_reply(result: Any) -> str | None:
 
 
 def on_pre_llm_call(session_id: str = "", turn_id: str = "", sender_id: Any = "",
-                    **_: Any) -> None:
+                    platform: str = "", **_: Any) -> None:
     """Remember who sent this turn's message (empty in the terminal)."""
     with _lock:
         _turn_senders[(session_id, turn_id)] = str(sender_id or "")
+        _turn_platforms[(session_id, turn_id)] = platform or ""
+
+
+def _telegram_sender(key: tuple[str, str]) -> str:
+    return _turn_senders.get(key, "") if _turn_platforms.get(key) == "telegram" else ""
 
 
 def on_pre_tool_call(tool_name: str = "", session_id: str = "", turn_id: str = "",
                      **_: Any) -> dict | None:
     key = (session_id, turn_id)
     with _lock:
-        if tool_name in INTAKE_TOOLS:
-            _intake_turns.add(key)
-        elif tool_name in DECISION_TOOLS and key in _intake_turns:
+        if tool_name in DECISION_TOOLS and key in _intake_turns:
             return {"action": "block", "message": BLOCK_MESSAGE}
-        elif tool_name in DECISION_TOOLS and _is_non_owner(_turn_senders.get(key, "")):
+        if tool_name in DECISION_TOOLS and _is_non_owner(_turn_senders.get(key, "")):
             _pending_replies[key] = NOT_OWNER_REPLY
             return {"action": "block", "message": NOT_OWNER_MESSAGE}
+        if tool_name in INTAKE_TOOLS:
+            _intake_turns.add(key)
+        if tool_name in SENDER_STAMPED_TOOLS:
+            return {"action": "modify", "args": {"telegram_sender": _telegram_sender(key)}}
     return None
 
 
@@ -116,6 +129,7 @@ def on_transform_llm_output(response_text: str = "", session_id: str = "",
     with _lock:
         _intake_turns.discard(key)
         _turn_senders.pop(key, None)
+        _turn_platforms.pop(key, None)
         return _pending_replies.pop(key, None)
 
 

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -12,12 +13,18 @@ from spendguard.decision import owner_decision
 from spendguard.extraction import extract_expense as _extract_expense
 from spendguard.extraction import extract_expense_from_text as _extract_expense_from_text
 from spendguard.extraction import find_missing_fields
+from spendguard import notify
 from spendguard.messages import (
     approved_message,
+    forwarded_owner_request,
     missing_fields_question,
     owner_approval_request,
     rejected_message,
+    requester_decision_message,
+    sent_to_owner_message,
+    unclear_decision_message,
     unreadable_document_message,
+    which_expense_message,
 )
 from spendguard.models import Expense
 from spendguard.normalize import canonical_name
@@ -206,18 +213,20 @@ def _price_check_in_db(candidate: Expense) -> dict:
 
 
 @mcp.tool()
-def save_expense(expense: dict) -> dict:
+def save_expense(expense: dict, telegram_sender: str = "") -> dict:
     """Save an expense as pending, awaiting owner approval. Never writes to Sheets.
 
-    The result includes "reply_to_owner": the Egyptian Arabic approval request
-    (with any duplicate/price warnings, re-checked here) to send as-is. The
-    source document is archived under data/documents/ and attached to that
-    reply via a MEDIA: line.
+    The result includes the Egyptian Arabic text to send as-is: either
+    "reply_to_owner" (the approval request, with duplicate/price warnings
+    re-checked here) or, when a site engineer sent it on Telegram and it was
+    forwarded to the owner's own chat, "reply_to_sender" (a confirmation).
+    The source document is archived under data/documents/ and attached.
     Refuses to save if required fields are missing, returning
     {"saved": False, "missing_fields", "reply_to_sender"} instead.
 
     Args:
         expense: an expense dict, e.g. the output of extract_expense.
+        telegram_sender: set by the system; leave it empty.
     """
     candidate = _normalized(expense)
     candidate.missing_fields = find_missing_fields(candidate)
@@ -225,6 +234,8 @@ def save_expense(expense: dict) -> dict:
         return _not_saved_missing_fields(candidate)
     candidate.status = "pending"
     candidate.source_file = archive_document(candidate.source_file)
+    if telegram_sender:  # the verified ID, so the decision can be sent back to them
+        candidate.source_channel, candidate.sender = "telegram", telegram_sender
     conn = get_connection()
     try:
         init_db(conn)
@@ -235,8 +246,21 @@ def save_expense(expense: dict) -> dict:
     duplicate = _find_duplicate_in_db(candidate)
     anomaly = _price_check_in_db(candidate)
     result = candidate.model_dump()
-    result["reply_to_owner"] = owner_approval_request(candidate, duplicate, anomaly)
+    if _forwarded_to_owner(candidate, duplicate, anomaly, telegram_sender):
+        result["reply_to_sender"] = sent_to_owner_message(candidate)
+    else:
+        result["reply_to_owner"] = owner_approval_request(candidate, duplicate, anomaly)
     return result
+
+
+def _forwarded_to_owner(candidate: Expense, duplicate: Expense | None, anomaly: dict,
+                        telegram_sender: str) -> bool:
+    """Send an engineer's request to the owner's own Telegram chat (F14). The
+    owner's own requests, and terminal/email ones, are answered in place."""
+    if not telegram_sender or notify.is_owner(telegram_sender) or not notify.telegram_configured():
+        return False
+    text = forwarded_owner_request(candidate, duplicate, anomaly)
+    return notify.send_to_owners(text, candidate.source_file)
 
 
 def _not_saved_missing_fields(candidate: Expense) -> dict:
@@ -253,13 +277,47 @@ def _decision_refusal(expense: Expense | None, owner_message: str, wanted: str) 
         return {"error": "No such expense id.", "decided": False}
     if expense.status != "pending":
         return {"error": f"Expense {expense.id} is already {expense.status}.", "decided": False}
+    if refusal := _wrong_expense_refusal(expense.id, owner_message):
+        return refusal
     if owner_decision(owner_message) != wanted:
         return {
             "error": f"owner_message has no explicit owner {wanted} decision. Only the owner "
                      "decides: send the approval request and wait for their reply.",
             "decided": False,
+            "reply": unclear_decision_message(expense.id),
         }
     return None
+
+
+def _pending_ids() -> list[int]:
+    conn = get_connection()
+    try:
+        init_db(conn)
+        return sorted(e.id for e in list_expenses(conn, statuses=["pending"]))
+    finally:
+        conn.close()
+
+
+def _wrong_expense_refusal(expense_id: int, owner_message: str) -> dict | None:
+    """The owner names another pending request, or names none while several
+    wait: never let the model pick which expense the owner meant."""
+    pending = _pending_ids()
+    named = {int(n) for n in re.findall(r"\d+", owner_message or "")} & set(pending)
+    if expense_id in named or (not named and pending == [expense_id]):
+        return None
+    if named:
+        return {"error": f"The owner named request {sorted(named)}, not {expense_id}.",
+                "decided": False}
+    return {"error": "Several expenses are pending and the owner named none.",
+            "decided": False, "reply": which_expense_message(pending)}
+
+
+def _notify_requester(expense: Expense, telegram_sender: str) -> bool:
+    """Tell the engineer who sent it (on Telegram) what the owner decided."""
+    if (expense.source_channel != "telegram" or not (expense.sender or "").isdigit()
+            or expense.sender == telegram_sender or not notify.telegram_configured()):
+        return False
+    return notify.send_message(expense.sender, requester_decision_message(expense))
 
 
 def _load_expense(expense_id: int) -> Expense | None:
@@ -272,13 +330,15 @@ def _load_expense(expense_id: int) -> Expense | None:
 
 
 @mcp.tool()
-def approve_expense(expense_id: int, owner_message: str) -> dict:
+def approve_expense(expense_id: int, owner_message: str, telegram_sender: str = "") -> dict:
     """Approve a pending expense: marks it approved and writes the row to Google Sheets.
 
     Args:
-        expense_id: the id returned by save_expense.
-        owner_message: the owner's reply, word for word (e.g. "موافق"). Refused
-            unless it explicitly approves.
+        expense_id: the request number the owner gave (e.g. 12 in "موافق 12"),
+            or the id returned by save_expense.
+        owner_message: the owner's reply, word for word (e.g. "موافق 12").
+            Refused unless it explicitly approves this request.
+        telegram_sender: set by the system; leave it empty.
     """
     expense = _load_expense(expense_id)
     if refusal := _decision_refusal(expense, owner_message, "approve"):
@@ -291,18 +351,21 @@ def approve_expense(expense_id: int, owner_message: str) -> dict:
 
     expense.status = "approved"
     synced = append_to_sheet(expense)
-    return expense.model_dump() | {"sheet_synced": synced, "reply": approved_message(expense, synced)}
+    return expense.model_dump() | {"sheet_synced": synced, "reply": approved_message(expense, synced),
+                                   "requester_notified": _notify_requester(expense, telegram_sender)}
 
 
 @mcp.tool()
-def reject_expense(expense_id: int, reason: str, owner_message: str) -> dict:
+def reject_expense(expense_id: int, reason: str, owner_message: str, telegram_sender: str = "") -> dict:
     """Reject a pending expense and record the reason. Never writes to Sheets.
 
     Args:
-        expense_id: the id returned by save_expense.
+        expense_id: the request number the owner gave (e.g. 12 in "ارفض 12"),
+            or the id returned by save_expense.
         reason: why the owner rejected it.
-        owner_message: the owner's reply, word for word (e.g. "ارفضه، السعر
-            عالي"). Refused unless it explicitly rejects.
+        owner_message: the owner's reply, word for word (e.g. "ارفض 12، السعر
+            عالي"). Refused unless it explicitly rejects this request.
+        telegram_sender: set by the system; leave it empty.
     """
     expense = _load_expense(expense_id)
     if refusal := _decision_refusal(expense, owner_message, "reject"):
@@ -315,7 +378,8 @@ def reject_expense(expense_id: int, reason: str, owner_message: str) -> dict:
 
     expense.status = "rejected"
     expense.rejection_reason = reason
-    return expense.model_dump() | {"reply": rejected_message(expense)}
+    return expense.model_dump() | {"reply": rejected_message(expense),
+                                   "requester_notified": _notify_requester(expense, telegram_sender)}
 
 
 @mcp.tool()

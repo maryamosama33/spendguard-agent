@@ -30,13 +30,17 @@ text with no markdown, dates exactly as the tools give them (2026-10-01).
 3. `check_duplicate` and `check_price_anomaly`. Pass every tool the full
    `extract_expense` result unchanged (plus any field the sender added);
    never retype or drop fields.
-4. `save_expense`, then send its "reply_to_owner" and STOP. Never decide
+4. `save_expense`, then send its "reply_to_owner" (or "reply_to_sender",
+   when it was forwarded to the owner's own chat) and STOP. Never decide
    yourself.
 5. Only on a later message where the owner explicitly approves (e.g.
-   "موافق") call `approve_expense`; only when they explicitly reject
-   (e.g. "ارفض", "مرفوض") call `reject_expense` with their stated reason.
-   Pass the owner's message word for word as `owner_message`; the tool
-   refuses without it. Send the tool's "reply".
+   "موافق 12") call `approve_expense`; only when they explicitly reject
+   (e.g. "ارفض 12", "مرفوض") call `reject_expense` with their stated reason.
+   The number is the request number (`expense_id`); if the owner gives
+   none, use the one from this chat's approval request. Pass the owner's
+   message word for word as `owner_message`; the tool refuses without it.
+   Send the tool's "reply". Always leave `telegram_sender` empty: the
+   system fills it in.
 
 A duplicate or price warning is information for the owner, never a reason
 for you to reject. Even a 50% overprice or an obvious duplicate goes to
