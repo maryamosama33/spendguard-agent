@@ -214,6 +214,14 @@ def test_seeded_steel_price_compared_per_ton(seeded_db):
     assert "⚠️ سعر الطن أعلى بـ 20%" in result["reply_to_owner"]
 
 
+def test_overpriced_steel_request_suggests_the_cheaper_seeded_supplier(seeded_db):
+    result = server.save_expense(STEEL | {"quantity": 1, "unit": "ton"})
+
+    assert ("💡 مورد أرخص: مجموعة حديد الدلتا متوسط سعره 15,267 جنيه للطن (أرخص بـ 15.2%)."
+            in result["reply_to_owner"])
+    assert result["reply_to_owner"].endswith("موافق ولا مرفوض؟")
+
+
 def test_two_tons_at_the_usual_price_raise_no_warning(seeded_db):
     result = server.save_expense(STEEL | {"quantity": 2, "unit": "ton", "amount": 30000.0})
 

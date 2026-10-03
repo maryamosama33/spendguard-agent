@@ -8,7 +8,7 @@ from google.genai import errors as genai_errors
 from mcp.server.mcpserver import MCPServer
 
 from spendguard.checks import check_price_anomaly as _check_price_anomaly
-from spendguard.checks import find_duplicate, find_resubmission
+from spendguard.checks import cheaper_supplier, find_duplicate, find_resubmission
 from spendguard.decision import owner_decision
 from spendguard.extraction import ExtractionFailed
 from spendguard.learning import Learning, learn_threshold
@@ -237,7 +237,17 @@ def _price_check_in_db(candidate: Expense) -> dict:
         conn.close()
     threshold_pct = _learning_for(candidate.item).threshold_pct
     result = _check_price_anomaly(candidate, history, threshold=threshold_pct / 100)
-    return result | {"threshold_pct": threshold_pct}
+    return result | {"threshold_pct": threshold_pct, "cheaper_supplier": _cheaper_supplier_in_db(candidate)}
+
+
+def _cheaper_supplier_in_db(candidate: Expense) -> dict | None:
+    conn = get_connection()
+    try:
+        init_db(conn)
+        history = list_expenses(conn, statuses=["approved"])
+    finally:
+        conn.close()
+    return cheaper_supplier(candidate, history)
 
 
 def _learning_for(item: str | None, exclude_id: int | None = None) -> Learning:

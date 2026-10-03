@@ -142,5 +142,53 @@
     "confidence": 1.0,
     "source_channel": "whatsapp",
     "sender": "201001112222"
+  },
+  {
+    "date": "2026-08-15",
+    "amount": 15100.0,
+    "currency": "EGP",
+    "supplier": "مجموعة حديد الدلتا",
+    "project": "موقع العاصمة الإدارية",
+    "cost_item": "materials",
+    "item": "steel rebar 12mm",
+    "quantity": 1.0,
+    "unit": "ton",
+    "requester": "أحمد علي",
+    "invoice_number": "DS-0412",
+    "confidence": 1.0,
+    "source_channel": "whatsapp",
+    "sender": "201003334444"
+  },
+  {
+    "date": "2026-09-02",
+    "amount": 15300.0,
+    "currency": "EGP",
+    "supplier": "مجموعة حديد الدلتا",
+    "project": "موقع العاصمة الإدارية",
+    "cost_item": "materials",
+    "item": "steel rebar 12mm",
+    "quantity": 1.0,
+    "unit": "ton",
+    "requester": "أحمد علي",
+    "invoice_number": "DS-0447",
+    "confidence": 1.0,
+    "source_channel": "whatsapp",
+    "sender": "201003334444"
+  },
+  {
+    "date": "2026-09-18",
+    "amount": 15400.0,
+    "currency": "EGP",
+    "supplier": "مجموعة حديد الدلتا",
+    "project": "موقع العاصمة الإدارية",
+    "cost_item": "materials",
+    "item": "steel rebar 12mm",
+    "quantity": 1.0,
+    "unit": "ton",
+    "requester": "أحمد علي",
+    "invoice_number": "DS-0481",
+    "confidence": 1.0,
+    "source_channel": "whatsapp",
+    "sender": "201003334444"
   }
 ]

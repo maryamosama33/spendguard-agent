@@ -16,7 +16,7 @@ hackathon.
 
 | Document | What SpendGuard does |
 |---|---|
-| `steel_invoice_overpriced.pdf` | ⚠️ Price per ton is 20% above the average of the last 3 purchases → owner decides |
+| `steel_invoice_overpriced.pdf` | ⚠️ Price per ton is 20% above the average of the last 3 purchases, and 💡 another supplier sells it 15% cheaper → owner decides |
 | `sand_transport_form.png` (handwritten) | Reads the handwriting, asks the sender which project it is for |
 | `cement_invoice_resubmitted.png` | ⚠️ Invoice SC-1140 was already submitted (now sent by someone else) |
 | `blurry_receipt.png` | Asks for a clearer photo instead of guessing the numbers |

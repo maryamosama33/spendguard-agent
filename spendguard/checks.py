@@ -101,6 +101,43 @@ def _recent_average(records: list[Expense], price: Callable[[Expense], float], w
     return sum(price(e) for e in recent) / len(recent)
 
 
+CHEAPER_SUPPLIER_MIN_SAVING = 0.05
+
+
+def _other_supplier_offers(candidate: Expense, history: list[Expense], window: int) -> dict[str, float]:
+    """Each other supplier's recent average unit price for the same item and unit."""
+    by_supplier: dict[str, list[Expense]] = {}
+    for e in history:
+        if (e.supplier and e.supplier != candidate.supplier and unit_price(e) is not None
+                and (e.item or "").strip().lower() == candidate.item.strip().lower()
+                and _same_unit(candidate, e)):
+            by_supplier.setdefault(e.supplier, []).append(e)
+    return {s: _recent_average(records, unit_price, window) for s, records in by_supplier.items()}
+
+
+def cheaper_supplier(
+    candidate: Expense,
+    history: list[Expense],
+    min_saving: float = CHEAPER_SUPPLIER_MIN_SAVING,
+    window: int = RECENT_PURCHASES_WINDOW,
+) -> dict | None:
+    """The cheapest other supplier of this item, if their recent price per unit
+    is at least `min_saving` below this request's (F12). Only per-unit prices
+    are compared: invoice totals from different orders say nothing."""
+    price = unit_price(candidate)
+    if price is None or not candidate.item:
+        return None
+    offers = _other_supplier_offers(candidate, history, window)
+    if not offers:
+        return None
+    supplier, offer = min(offers.items(), key=lambda kv: kv[1])
+    saving = (price - offer) / price
+    if saving < min_saving:
+        return None
+    return {"supplier": supplier, "unit_price": round(offer, 2), "unit": candidate.unit,
+            "saving_pct": round(saving * 100, 1)}
+
+
 def check_price_anomaly(
     candidate: Expense,
     history: list[Expense],

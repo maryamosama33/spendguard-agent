@@ -89,6 +89,12 @@ def _price_warning(anomaly: dict) -> str:
     return warning + _learned_threshold_note(anomaly)
 
 
+def _cheaper_supplier_line(offer: dict) -> str:
+    unit = UNIT_AR.get((offer.get("unit") or "").lower(), "وحدة")
+    return (f"💡 مورد أرخص: {offer['supplier']} متوسط سعره {_money(offer['unit_price'])} لل{unit} "
+            f"(أرخص بـ {offer['saving_pct']:g}%).")
+
+
 def _learned_threshold_note(anomaly: dict) -> str:
     learned = anomaly.get("threshold_pct")
     if learned is None or learned == DEFAULT_THRESHOLD_PCT:
@@ -121,6 +127,8 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
         lines.append(_duplicate_warning(duplicate))
     if anomaly.get("is_anomaly"):
         lines.append(_price_warning(anomaly))
+    if anomaly.get("cheaper_supplier"):
+        lines.append(_cheaper_supplier_line(anomaly["cheaper_supplier"]))
     if expense.source_file and source == "attach":
         lines.append(_source_document_line(expense.source_file))
     elif expense.source_file and source == "note":
