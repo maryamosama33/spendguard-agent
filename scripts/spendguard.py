@@ -34,6 +34,9 @@ GATEWAY_ADMINS_TEMPLATE = """  # Owners (SPENDGUARD_OWNER_IDS) get every slash c
       extra:
         allow_admin_from: {ids}
         group_allow_admin_from: {ids}
+        # Telegram sends /start when anyone opens the bot; Hermes treats it as a
+        # no-op ping, so engineers shouldn't get an "admin only" reply to it.
+        user_allowed_commands: ["start"]
 """
 
 
