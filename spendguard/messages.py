@@ -64,7 +64,9 @@ def _invoice_line(expense: Expense) -> str:
 
 
 def _duplicate_warning(duplicate: Expense) -> str:
-    status = {"approved": "معتمدة", "pending": "لسه مستنية موافقة"}.get(duplicate.status, duplicate.status)
+    status = {"approved": "معتمدة", "pending": "لسه مستنية موافقة",
+              "rejected": f"اترفضت: {duplicate.rejection_reason}" if duplicate.rejection_reason else "اترفضت",
+              }.get(duplicate.status, duplicate.status)
     ref = duplicate.invoice_number or f"طلب رقم {duplicate.id}"
     return f"⚠️ الفاتورة دي اتقدمت قبل كده: {ref} بتاريخ {duplicate.date} ({status})."
 

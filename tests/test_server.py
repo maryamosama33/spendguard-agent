@@ -206,6 +206,15 @@ def test_decision_refused_when_owner_named_another_request(seeded_db):
     assert storage.get_expense(storage.get_connection(), second["id"]).status == "pending"
 
 
+def test_rejected_invoice_resubmitted_by_someone_else_is_flagged(seeded_db):
+    first = server.save_expense(STEEL)
+    server.reject_expense(first["id"], "السعر عالي", f"ارفض {first['id']}")
+
+    again = server.save_expense(STEEL | {"requester": "أحمد علي", "invoice_number": "nsf 2241"})
+
+    assert "⚠️ الفاتورة دي اتقدمت قبل كده: NSF-2241 بتاريخ 2026-10-01 (اترفضت: السعر عالي)." in again["reply_to_owner"]
+
+
 def test_unclear_decision_asks_owner_again(seeded_db):
     saved = server.save_expense(STEEL)
 

@@ -151,7 +151,7 @@ def _extraction_service_error(e: genai_errors.APIError) -> dict:
 
 @mcp.tool()
 def check_duplicate(expense: dict) -> dict:
-    """Check whether an expense looks like a repeat of an existing pending/approved one.
+    """Check whether an expense looks like a repeat of an existing pending, approved or rejected one.
 
     Args:
         expense: an expense dict, e.g. the output of extract_expense.
@@ -196,7 +196,8 @@ def _find_duplicate_in_db(candidate: Expense) -> Expense | None:
     conn = get_connection()
     try:
         init_db(conn)
-        existing = list_expenses(conn, statuses=["pending", "approved"])
+        # Rejected too: an invoice turned down once must not slip back in via someone else.
+        existing = list_expenses(conn, statuses=["pending", "approved", "rejected"])
     finally:
         conn.close()
     return find_duplicate(candidate, existing)
