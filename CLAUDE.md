@@ -3,7 +3,7 @@
 ## What we're building
 
 An AI agent that controls SME spending as it happens. Field staff send
-expense requests on WhatsApp (photos of handwritten Arabic forms, PDFs,
+expense requests on Telegram (photos of handwritten Arabic forms, PDFs,
 Egyptian-Arabic voice notes); suppliers and staff can also send invoices
 and requests by email (PDF/image attachments or email body). The agent
 extracts the data, checks for duplicates and abnormal supplier prices,
@@ -18,17 +18,17 @@ saved, money saved.
 ## Architecture
 
 - Hermes Agent (installed separately, NOT in this repo): conversation,
-  WhatsApp/email gateway, voice transcription (Egyptian-Arabic STT),
+  Telegram/email gateway, voice transcription (Egyptian-Arabic STT),
   scheduling. Configured via ~/.hermes/config.yaml + SOUL.md.
 - THIS repo: a Python MCP server (mcp SDK v2.x, MCPServer) exposing
-  business-logic tools that Hermes calls. Both channels (WhatsApp/
+  business-logic tools that Hermes calls. Both channels (Telegram/
   email) feed the same MCP tools; every saved expense records its
   source channel and sender.
 - Gemini (google-genai, structured output) for vision extraction,
   including Arabic handwriting.
 - Storage: SQLite is the source of truth; approved rows only are
   mirrored to Google Sheets (gspread).
-- WhatsApp: Baileys bridge for the demo, Cloud API for production.
+- Telegram: Hermes's built-in Telegram gateway (bot from @BotFather).
 
 ## MVP scope: build ONLY these (see docs/features.md)
 
@@ -55,7 +55,7 @@ extract_expense, check_duplicate, check_price_anomaly, save_expense
 
 ## Agent flow
 
-1. Receive a request (WhatsApp or email)
+1. Receive a request (Telegram or email)
 2. extract_expense → if fields are missing or confidence is low, ask
    the sender instead of guessing (F07/F08)
 3. check_duplicate → flag if it's a repeat (F09)

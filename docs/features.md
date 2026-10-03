@@ -3,7 +3,7 @@
 ## MVP (build these — see CLAUDE.md)
 
 ### Document Intake
-- F01 Multi-channel intake: receives expense requests as images, PDFs, text on WhatsApp; reads supplier invoices from email attachments.
+- F01 Multi-channel intake: receives expense requests as images, PDFs, text on Telegram; reads supplier invoices from email attachments.
 - F02 Voice-note requests: understands Egyptian-Arabic voice notes from site engineers (e.g. "paid 3,000 EGP sand transport for project X") and turns them into requests.
 - F03 Arabic handwriting OCR: reads handwritten Arabic expense forms photographed on a phone, including skewed or poorly lit images.
 
@@ -22,14 +22,14 @@
 - F11 Price anomaly alerts: alerts when a price is abnormally high vs. recent history (e.g. "steel is 18% above the last 3 purchases").
 
 ### Approval Workflow
-- F14 Approval before logging: sends a request summary on WhatsApp for approve/reject; rows are written only after approval.
+- F14 Approval before logging: sends a request summary on Telegram for approve/reject; rows are written only after approval.
 
 ### Q&A
 - F23 Natural-language questions: answers questions in Egyptian Arabic by text or voice (e.g. "How much did we spend on project X this month?").
 
 ### Demo & Deployment
-- F25 Judge demo mode: runs end to end from the Hermes CLI with seeded sample data, no WhatsApp setup needed.
-- F26 Security guardrails: restricts the agent to business tools only; accepts messages from approved numbers only.
+- F25 Judge demo mode: runs end to end from the Hermes CLI with seeded sample data, no Telegram setup needed.
+- F26 Security guardrails: restricts the agent to business tools only; accepts messages from approved Telegram users only.
 
 ## Phase 2 (out of scope unless asked)
 

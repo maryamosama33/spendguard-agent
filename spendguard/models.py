@@ -21,7 +21,7 @@ class Expense(ExtractedFields):
     """Full expense record, including fields attached by the caller."""
 
     missing_fields: list[str] = Field(default_factory=list)
-    source_channel: str | None = None  # whatsapp | email
+    source_channel: str | None = None  # telegram | whatsapp | email
     sender: str | None = None
     source_file: str | None = None
     status: str = "pending"  # pending | approved | rejected
