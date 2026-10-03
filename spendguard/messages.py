@@ -108,10 +108,10 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
 
 
 def forwarded_owner_request(expense: Expense, duplicate: Expense | None, anomaly: dict) -> str:
-    """The approval request pushed to the owner's own chat: that chat has no
-    context, so the owner replies with the request number."""
+    """The approval request pushed to the owner's own chat. A bare "موافق" is
+    enough: the decision tools find the request (and ask if several wait)."""
     return (owner_approval_request(expense, duplicate, anomaly, source="none")
-            + f"\nرد بـ «موافق {expense.id}» أو «ارفض {expense.id}» والسبب.")
+            + "\nرد بـ «موافق» أو «ارفض» والسبب.")
 
 
 def sent_to_owner_message(expense: Expense) -> str:
