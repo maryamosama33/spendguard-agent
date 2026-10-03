@@ -147,7 +147,7 @@ def test_owner_rejection_recorded(seeded_db):
     result = server.reject_expense(saved["id"], "السعر عالي", owner_message="ارفضه، السعر عالي")
 
     assert result["status"] == "rejected"
-    assert result["reply"] == f"تمام، اترفض طلب رقم {saved['id']}. السبب: السعر عالي"
+    assert result["reply"] == f"تمام، تم رفض طلب رقم {saved['id']}. السبب: السعر عالي"
 
 
 def test_owner_approval_writes_sheet_once(seeded_db):
@@ -169,7 +169,7 @@ def test_repeat_decision_naming_the_request_says_already_decided(seeded_db):
 
     again = server.approve_expense(saved["id"], f"موافق {saved['id']}")
 
-    assert again["reply"] == f"طلب رقم {saved['id']} اتعتمد قبل كده."
+    assert again["reply"] == f"طلب رقم {saved['id']} تم اعتماده قبل كده."
 
 
 def test_owner_approves_without_number_when_one_request_pending(seeded_db):

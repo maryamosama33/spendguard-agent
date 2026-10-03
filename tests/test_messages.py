@@ -83,9 +83,9 @@ def test_unknown_item_name_is_kept_as_is():
 
 
 def test_approved_without_sheets_does_not_claim_sheet_row():
-    assert approved_message(_steel(), sheet_synced=False) == "تمام، اتعتمد طلب رقم 57 (18,000 جنيه) واتسجل في السيستم."
+    assert approved_message(_steel(), sheet_synced=False) == "تمام، تم اعتماد طلب رقم 57 (18,000 جنيه) واتسجل في السيستم."
 
 
 def test_approved_and_rejected_messages():
-    assert approved_message(_steel()) == "تمام، اتعتمد طلب رقم 57 (18,000 جنيه) واتسجل في شيت المصاريف."
-    assert rejected_message(_steel(rejection_reason="السعر عالي")) == "تمام، اترفض طلب رقم 57. السبب: السعر عالي"
+    assert approved_message(_steel()) == "تمام، تم اعتماد طلب رقم 57 (18,000 جنيه) واتسجل في شيت المصاريف."
+    assert rejected_message(_steel(rejection_reason="السعر عالي")) == "تمام، تم رفض طلب رقم 57. السبب: السعر عالي"

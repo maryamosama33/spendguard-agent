@@ -199,7 +199,7 @@ def no_pending_message() -> str:
 
 
 def already_decided_message(expense: Expense) -> str:
-    decided = {"approved": "اتعتمد", "rejected": "اترفض"}.get(expense.status, expense.status)
+    decided = {"approved": "تم اعتماده", "rejected": "تم رفضه"}.get(expense.status, expense.status)
     return f"طلب رقم {expense.id} {decided} قبل كده."
 
 
@@ -216,8 +216,8 @@ def _source_document_line(path: str) -> str:
 
 def approved_message(expense: Expense, sheet_synced: bool = True) -> str:
     where = "واتسجل في شيت المصاريف" if sheet_synced else "واتسجل في السيستم"
-    return f"تمام، اتعتمد طلب رقم {expense.id} ({_money(expense.amount)}) {where}."
+    return f"تمام، تم اعتماد طلب رقم {expense.id} ({_money(expense.amount)}) {where}."
 
 
 def rejected_message(expense: Expense) -> str:
-    return f"تمام، اترفض طلب رقم {expense.id}. السبب: {expense.rejection_reason}"
+    return f"تمام، تم رفض طلب رقم {expense.id}. السبب: {expense.rejection_reason}"
