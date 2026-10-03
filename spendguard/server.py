@@ -10,6 +10,7 @@ from mcp.server.mcpserver import MCPServer
 from spendguard.checks import check_price_anomaly as _check_price_anomaly
 from spendguard.checks import find_duplicate, find_resubmission
 from spendguard.decision import owner_decision
+from spendguard.extraction import ExtractionFailed
 from spendguard.extraction import extract_expense as _extract_expense
 from spendguard.extraction import extract_expense_from_text as _extract_expense_from_text
 from spendguard.extraction import find_missing_fields
@@ -84,6 +85,10 @@ def extract_expense(file_path: str, source_channel: str, sender: str) -> dict:
         expense = _extract_expense(file_path, source_channel, sender, _known_items())
     except genai_errors.APIError as e:
         return _extraction_service_error(e)
+    except ExtractionFailed:
+        return EXTRACTION_FAILED
+    except ValueError as e:  # e.g. a file type Gemini can't be sent
+        return {"error": f"Cannot read this document: {e}", "retryable": False}
     if _is_unreadable(expense):
         return {"unreadable": True, "confidence": expense.confidence,
                 "reply_to_sender": unreadable_document_message()}
@@ -129,7 +134,13 @@ def extract_expense_from_text(text: str, source_channel: str, sender: str) -> di
         expense = _extract_expense_from_text(text, source_channel, sender, _known_items())
     except genai_errors.APIError as e:
         return _extraction_service_error(e)
+    except ExtractionFailed:
+        return EXTRACTION_FAILED
     return _extraction_result(expense)
+
+
+EXTRACTION_FAILED = {"error": "The invoice-reading service gave an unusable answer. Try again.",
+                     "retryable": True}
 
 
 def _known_items() -> list[str]:

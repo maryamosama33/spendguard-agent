@@ -62,7 +62,18 @@ def _client() -> genai.Client:
     return genai.Client(http_options=types.HttpOptions(retry_options=retry))
 
 
+class ExtractionFailed(Exception):
+    """Gemini answered, but not with the expense fields (e.g. malformed JSON)."""
+
+
+# Not left to mimetypes: on Windows it reads the registry, which may lack .webp.
+DOCUMENT_MIME_TYPES = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                       ".png": "image/png", ".webp": "image/webp"}
+
+
 def _mime_type_for(path: Path) -> str:
+    if path.suffix.lower() in DOCUMENT_MIME_TYPES:
+        return DOCUMENT_MIME_TYPES[path.suffix.lower()]
     mime_type, _ = mimetypes.guess_type(path.name)
     if mime_type is None:
         raise ValueError(f"Could not determine MIME type for {path}")
@@ -109,6 +120,8 @@ def _ask_gemini(content: types.Part | str, known_items: Sequence[str] = ()) -> E
             response_schema=ExtractedFields,
         ),
     )
+    if not isinstance(response.parsed, ExtractedFields):
+        raise ExtractionFailed("Gemini returned no parsable expense fields.")
     return response.parsed
 
 

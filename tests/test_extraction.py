@@ -1,7 +1,9 @@
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from spendguard.extraction import extract_expense, extract_expense_from_text
+import pytest
+
+from spendguard.extraction import ExtractionFailed, _mime_type_for, extract_expense, extract_expense_from_text
 from spendguard.models import ExtractedFields
 
 
@@ -98,6 +100,18 @@ def test_no_known_items_hint_without_history():
         extract_expense_from_text("x", "whatsapp", "201")
 
     assert "price history" not in generate.call_args.kwargs["contents"][1]
+
+
+def test_unparsable_gemini_answer_raises_extraction_failed():
+    with patch("spendguard.extraction._client") as mock_client_factory:
+        mock_client_factory.return_value.models.generate_content.return_value = _mock_response(None)
+
+        with pytest.raises(ExtractionFailed):
+            extract_expense_from_text("x", "telegram", "201")
+
+
+def test_webp_photo_mime_type_known_without_registry(tmp_path):
+    assert _mime_type_for(tmp_path / "IMG_1.WEBP") == "image/webp"
 
 
 def test_extract_expense_unknown_mime_type(tmp_path):

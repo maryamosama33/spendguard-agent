@@ -5,6 +5,7 @@ import pytest
 from google.genai import errors as genai_errors
 
 from spendguard import server, storage
+from spendguard.extraction import ExtractionFailed
 from spendguard.models import Expense
 from spendguard.seed import seed_price_history
 
@@ -316,6 +317,21 @@ def test_extract_expense_bad_request_is_not_retryable():
         result = server.extract_expense("invoice.pdf", "email", "a@b.example")
 
     assert result["retryable"] is False
+
+
+def test_unparsable_gemini_answer_is_retryable_error_dict():
+    with patch("spendguard.server._extract_expense_from_text", side_effect=ExtractionFailed("bad json")):
+        result = server.extract_expense_from_text("دفعت 3000 جنيه", "telegram", "201")
+
+    assert result["retryable"] is True and "error" in result
+
+
+def test_unsupported_file_type_is_error_dict_not_exception():
+    with patch("spendguard.server._extract_expense", side_effect=ValueError("Could not determine MIME type")), \
+         patch("spendguard.server._document_refusal", return_value=None):
+        result = server.extract_expense("invoice.xyz", "telegram", "201")
+
+    assert result["retryable"] is False and "MIME" in result["error"]
 
 
 def test_extract_expense_from_text_quota_error_is_retryable_dict():
