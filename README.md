@@ -1,6 +1,10 @@
-# SpendGuard
+<p align="center">
+  <img src="docs/logo.png" alt="SpendGuard logo" width="180">
+</p>
 
-**An AI agent that controls SME field spending as it happens, in Egyptian Arabic.**
+<h1 align="center">SpendGuard</h1>
+
+<p align="center"><strong>An AI agent that controls SME field spending as it happens, in Egyptian Arabic.</strong></p>
 
 Site engineers send expense requests the way they already do: a photo of a
 handwritten Arabic form, a supplier PDF, or a voice note. SpendGuard reads it,
