@@ -4,6 +4,8 @@ The chat model relays these verbatim, so the tone, dates and warnings are
 the same on every run instead of depending on how the model phrases them.
 """
 
+from pathlib import Path
+
 from spendguard.models import Expense
 
 ITEM_AR = {
@@ -85,7 +87,9 @@ def _price_warning(anomaly: dict) -> str:
 
 
 def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly: dict,
-                           attach_source: bool = True) -> str:
+                           source: str = "attach") -> str:
+    """source: "attach" (Telegram: the gateway attaches the file), "note" (the
+    terminal: say where it is saved) or "none" (sent separately)."""
     who = f" من {expense.requester}" if expense.requester else ""
     project = f" لمشروع {expense.project}" if expense.project else ""
     invoice = _invoice_line(expense)
@@ -95,8 +99,10 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
         lines.append(_duplicate_warning(duplicate))
     if anomaly.get("is_anomaly"):
         lines.append(_price_warning(anomaly))
-    if attach_source and expense.source_file:
+    if expense.source_file and source == "attach":
         lines.append(_source_document_line(expense.source_file))
+    elif expense.source_file and source == "note":
+        lines.append(f"📎 المستند الأصلي محفوظ: data/documents/{Path(expense.source_file).name}")
     lines.append("موافق ولا مرفوض؟")
     return "\n".join(lines)
 
@@ -104,7 +110,7 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
 def forwarded_owner_request(expense: Expense, duplicate: Expense | None, anomaly: dict) -> str:
     """The approval request pushed to the owner's own chat: that chat has no
     context, so the owner replies with the request number."""
-    return (owner_approval_request(expense, duplicate, anomaly, attach_source=False)
+    return (owner_approval_request(expense, duplicate, anomaly, source="none")
             + f"\nرد بـ «موافق {expense.id}» أو «ارفض {expense.id}» والسبب.")
 
 

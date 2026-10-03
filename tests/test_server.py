@@ -34,13 +34,13 @@ def test_save_expense_reply_includes_price_warning(seeded_db):
     assert "اتقدمت قبل كده" not in result["reply_to_owner"]  # must not match its own row
 
 
-def test_save_expense_archives_source_document_and_attaches_it(seeded_db, tmp_path, monkeypatch):
+def test_save_expense_archives_source_document_and_attaches_it(seeded_db, tmp_path, monkeypatch, telegram):
     monkeypatch.setattr(storage, "DOCUMENTS_DIR", tmp_path / "documents")
     original = tmp_path / "hermes" / "cache" / "documents" / "doc_ab12_invoice.PDF"  # a Telegram upload
     original.parent.mkdir(parents=True)
     original.write_bytes(b"%PDF-1.4 steel")
 
-    result = server.save_expense(STEEL | {"source_file": str(original)})
+    result = server.save_expense(STEEL | {"source_file": str(original)}, telegram_sender=OWNER)
 
     archived = Path(result["source_file"])
     assert archived.parent == storage.DOCUMENTS_DIR
@@ -49,6 +49,16 @@ def test_save_expense_archives_source_document_and_attaches_it(seeded_db, tmp_pa
     assert f"MEDIA:{result['source_file']}" in result["reply_to_owner"]
     original.unlink()  # the gateway cache is cleaned; the archived copy remains
     assert archived.exists()
+
+
+def test_terminal_reply_names_saved_document_instead_of_media_tag(seeded_db, tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DOCUMENTS_DIR", tmp_path / "documents")
+    invoice = storage.SEED_DIR / "invoices" / "steel_invoice_overpriced.pdf"
+
+    result = server.save_expense(STEEL | {"source_file": str(invoice)})
+
+    assert "MEDIA:" not in result["reply_to_owner"]
+    assert f"📎 المستند الأصلي محفوظ: data/documents/{Path(result['source_file']).name}" in result["reply_to_owner"]
 
 
 def test_archive_document_is_idempotent_and_skips_missing_files(tmp_path, monkeypatch):

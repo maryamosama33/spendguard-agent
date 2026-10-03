@@ -293,7 +293,9 @@ def _saved_result(candidate: Expense, telegram_sender: str, forward: bool) -> di
     if with_owner:
         result["reply_to_sender"] = sent_to_owner_message(candidate)
     else:
-        result["reply_to_owner"] = owner_approval_request(candidate, duplicate, anomaly)
+        # MEDIA: tags only mean something to the Telegram gateway; the terminal would print them.
+        source = "attach" if telegram_sender else "note"
+        result["reply_to_owner"] = owner_approval_request(candidate, duplicate, anomaly, source)
     return result
 
 

@@ -28,7 +28,7 @@ Only the owner can approve or reject. Every reply is ready-made Egyptian Arabic.
 
 ## Quick start (about 5 minutes)
 
-**You need:** Python 3.11+, git, [Hermes Agent](https://hermes-agent.nousresearch.com/docs)
+**You need:** Python 3.11+ (tested on 3.11 and 3.14), git, [Hermes Agent](https://hermes-agent.nousresearch.com/docs)
 (`hermes --version` works), a free [Gemini API key](https://aistudio.google.com/apikey)
 and a free [Groq API key](https://console.groq.com/keys).
 
