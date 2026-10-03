@@ -27,7 +27,7 @@ from spendguard.messages import (
     which_expense_message,
 )
 from spendguard.models import Expense
-from spendguard.normalize import canonical_name
+from spendguard.normalize import canonical_name, resolve_name
 from spendguard.query import filter_expenses, summarize
 from spendguard.storage import (
     append_to_sheet,
@@ -405,6 +405,7 @@ def query_expenses(
     try:
         init_db(conn)
         candidates = list_expenses(conn, statuses=[status])
+        project, supplier, item = _canonical_filters(conn, project, supplier, item)
     finally:
         conn.close()
 
@@ -418,8 +419,18 @@ def query_expenses(
         date_to=date_to,
     )
     summary = summarize(matches)
+    summary["filters"] = {"project": project, "supplier": supplier, "item": item}
     summary["expenses"] = [e.model_dump() for e in matches]
     return summary
+
+
+def _canonical_filters(conn, project: str | None, supplier: str | None,
+                       item: str | None) -> tuple[str | None, str | None, str | None]:
+    """The question's names snapped to known ones ("فيلا التجمع" -> "فيلات التجمع
+    الخامس"), since the filters match exactly."""
+    return (resolve_name(project, _known_projects(conn)),
+            resolve_name(supplier, list_known_values(conn, "supplier")),
+            resolve_name(item, list_item_names(conn)))
 
 
 if __name__ == "__main__":

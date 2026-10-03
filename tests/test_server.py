@@ -134,6 +134,13 @@ def test_two_tons_at_the_usual_price_raise_no_warning(seeded_db):
     assert "⚠️" not in result["reply_to_owner"]
 
 
+def test_query_with_short_project_name_finds_its_spending(seeded_db):
+    result = server.query_expenses(project="التجمع الخامس")
+
+    assert result["filters"]["project"] == "فيلات التجمع الخامس"
+    assert result["count"] > 0
+
+
 OWNER, ENGINEER = "1386120774", "555"
 
 
