@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -12,6 +13,7 @@ from spendguard.checks import cheaper_supplier, find_duplicate, find_resubmissio
 from spendguard.decision import owner_decision
 from spendguard.extraction import ExtractionFailed
 from spendguard.learning import Learning, learn_threshold
+from spendguard.savings import savings_summary
 from spendguard.extraction import extract_expense as _extract_expense
 from spendguard.extraction import extract_expense_from_text as _extract_expense_from_text
 from spendguard.extraction import find_missing_fields
@@ -26,6 +28,7 @@ from spendguard.messages import (
     owner_approval_request,
     rejected_message,
     requester_decision_message,
+    savings_message,
     sent_to_owner_message,
     unclear_decision_message,
     unreadable_document_message,
@@ -297,8 +300,11 @@ def save_expense(expense: dict, telegram_sender: str = "") -> dict:
     if earlier := _pending_resubmission(candidate):
         candidate.id = earlier.id
         return _saved_result(candidate, telegram_sender, forward=False) | {"already_saved": True}
-    # Kept with the expense so the owner's decision on it can teach SpendGuard.
+    # Kept with the expense so the owner's decision on it can teach SpendGuard
+    # (F27) and count as money saved if rejected (F13).
     candidate.price_deviation_pct = _price_check_in_db(candidate)["deviation_pct"]
+    if duplicate := _find_duplicate_in_db(candidate):
+        candidate.duplicate_of = duplicate.id
     conn = get_connection()
     try:
         init_db(conn)
@@ -560,6 +566,25 @@ def _canonical_filters(conn, project: str | None, supplier: str | None,
     return (resolve_name(project, _known_projects(conn)),
             resolve_name(supplier, list_known_values(conn, "supplier")),
             resolve_name(item, list_item_names(conn)))
+
+
+@mcp.tool()
+def savings_report(month: str = "") -> dict:
+    """Money saved by the owner's rejections: duplicates stopped and price
+    overcharges avoided. Use for "وفرنا كام؟". Send the result's "reply".
+
+    Args:
+        month: "YYYY-MM"; empty means this month.
+    """
+    month = month or date.today().strftime("%Y-%m")
+    conn = get_connection()
+    try:
+        init_db(conn)
+        rejected = list_expenses(conn, statuses=["rejected"])
+    finally:
+        conn.close()
+    summary = savings_summary(rejected, month)
+    return summary | {"reply": savings_message(summary)}
 
 
 if __name__ == "__main__":

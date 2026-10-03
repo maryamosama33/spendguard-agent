@@ -275,6 +275,31 @@ def test_rejection_without_a_price_reason_teaches_nothing(seeded_db):
     assert "💡" not in result["reply"]
 
 
+CEMENT_AGAIN = dict(
+    date="2026-09-10", amount=1220.0, quantity=1, unit="ton", supplier="شركة أسمنت السويس",
+    project="مستودع 6 أكتوبر", cost_item="materials", item="cement", requester="أحمد علي",
+    invoice_number="SC-1140",
+)
+
+
+def test_savings_report_after_rejecting_a_duplicate_and_an_overprice(seeded_db):
+    with patch("spendguard.server.append_to_sheet", return_value=False):
+        cement = server.save_expense(CEMENT_AGAIN)
+        server.reject_expense(cement["id"], "مكررة", f"ارفض {cement['id']} مكررة")
+        steel = server.save_expense(STEEL | {"quantity": 1, "unit": "ton"})
+        server.reject_expense(steel["id"], "السعر عالي", f"ارفض {steel['id']} السعر عالي")
+
+    report = server.savings_report()
+
+    assert cement["duplicate_of"] is not None
+    assert report["total_saved"] == 4220.0  # 1,220 duplicate + 3,000 overcharge on 18,000 at +20%
+    assert "SpendGuard وفّرلك 4,220 جنيه" in report["reply"]
+
+
+def test_savings_report_for_a_month_without_rejections(seeded_db):
+    assert server.savings_report("2026-01")["reply"] == "لسه مفيش توفير متسجل في يناير 2026."
+
+
 OWNER, ENGINEER = "1386120774", "555"
 
 

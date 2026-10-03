@@ -29,4 +29,6 @@ class Expense(ExtractedFields):
     status: str = "pending"  # pending | approved | rejected
     rejection_reason: str | None = None
     price_deviation_pct: float | None = None  # vs recent purchases when saved; for learning
+    duplicate_of: int | None = None  # id of the earlier expense it repeated, when saved
+    decided_at: str | None = None  # ISO date the owner approved/rejected it
     id: int | None = None

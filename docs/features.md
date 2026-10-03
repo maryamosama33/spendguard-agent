@@ -34,7 +34,7 @@
 ## Phase 2 (out of scope unless asked)
 
 - F12 Supplier comparison — suggest cheaper suppliers for the same item (built, branch phase-2).
-- F13 Monthly savings report — total value of price discrepancies/duplicates caught per month.
+- F13 Monthly savings report — total value of price discrepancies/duplicates caught per month (built, branch phase-2).
 - F15 Amount-based approval routing.
 - F16 Pending-approval reminders.
 - F17 Audit trail (who requested/approved/when).

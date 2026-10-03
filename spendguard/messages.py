@@ -160,6 +160,40 @@ def unclear_decision_message(expense_id: int) -> str:
             f"ابعت «موافق {expense_id}» أو «ارفض {expense_id}» والسبب.")
 
 
+MONTHS_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس",
+             "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+
+
+def _month_ar(month: str) -> str:
+    year, number = month.split("-")
+    return f"{MONTHS_AR[int(number) - 1]} {year}"
+
+
+def _counted(n: int, one: str, two: str, few: str, many: str) -> str:
+    """Arabic number agreement: فاتورة واحدة، فاتورتين، 3 فواتير، 11 فاتورة."""
+    if n == 1:
+        return one
+    if n == 2:
+        return two
+    return f"{n} {few if n <= 10 else many}"
+
+
+def savings_message(summary: dict) -> str:
+    month = _month_ar(summary["month"])
+    if not summary["total_saved"]:
+        return f"لسه مفيش توفير متسجل في {month}."
+    parts = []
+    duplicates, overpricing = summary["duplicates"], summary["overpricing"]
+    if duplicates["count"]:
+        what = _counted(duplicates["count"], "فاتورة مكررة واحدة", "فاتورتين مكررين", "فواتير مكررة", "فاتورة مكررة")
+        parts.append(f"{what} اترفضت ({_money(duplicates['amount'])})")
+    if overpricing["count"]:
+        what = _counted(overpricing["count"], "زيادة سعر واحدة", "زيادتين في الأسعار", "زيادات في الأسعار",
+                        "زيادة في الأسعار")
+        parts.append(f"{what} اترفضت ({_money(overpricing['amount'])} فرق سعر)")
+    return f"💰 في {month} SpendGuard وفّرلك {_money(summary['total_saved'])}: " + " و".join(parts) + "."
+
+
 def no_pending_message() -> str:
     return "مفيش طلبات مستنية موافقتك دلوقتي."
 
