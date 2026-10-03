@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS expenses (
     project TEXT,
     cost_item TEXT,
     item TEXT,
+    quantity REAL,
+    unit TEXT,
     requester TEXT,
     invoice_number TEXT,
     confidence REAL,
@@ -37,8 +39,11 @@ CREATE TABLE IF NOT EXISTS expenses (
 SHEET_COLUMNS = [
     "id", "date", "amount", "currency", "supplier", "project", "cost_item",
     "item", "requester", "invoice_number", "source_channel", "sender",
-    "source_file", "status",
+    "source_file", "status", "quantity", "unit",  # appended last: existing sheets keep their layout
 ]
+
+# Columns added after the first release; init_db adds them to older databases.
+ADDED_COLUMNS = {"quantity": "REAL", "unit": "TEXT"}
 
 
 def get_connection() -> sqlite3.Connection:
@@ -50,7 +55,15 @@ def get_connection() -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.execute(SCHEMA)
+    _add_missing_columns(conn)
     conn.commit()
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(expenses)")}  # 1 = name
+    for column, sql_type in ADDED_COLUMNS.items():
+        if column not in existing:
+            conn.execute(f"ALTER TABLE expenses ADD COLUMN {column} {sql_type}")
 
 
 def _row_to_expense(row: sqlite3.Row) -> Expense:

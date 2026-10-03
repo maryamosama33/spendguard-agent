@@ -11,6 +11,8 @@ class ExtractedFields(BaseModel):
     project: str | None = None
     cost_item: str | None = None  # materials | labor | transport | subcontractor
     item: str | None = None  # specific line item, e.g. "steel rebar 12mm", "sand"
+    quantity: float | None = None  # of the item, e.g. 2 (tons)
+    unit: str | None = None  # ton | kg | m3 | m2 | meter | bag | trip | piece | day
     requester: str | None = None
     invoice_number: str | None = None
     confidence: float = 0.0

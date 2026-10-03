@@ -122,6 +122,18 @@ def test_approve_refused_when_owner_said_no(seeded_db):
     sheet.assert_not_called()
 
 
+def test_seeded_steel_price_compared_per_ton(seeded_db):
+    result = server.save_expense(STEEL | {"quantity": 1, "unit": "ton"})
+
+    assert "⚠️ سعر الطن أعلى بـ 20%" in result["reply_to_owner"]
+
+
+def test_two_tons_at_the_usual_price_raise_no_warning(seeded_db):
+    result = server.save_expense(STEEL | {"quantity": 2, "unit": "ton", "amount": 30000.0})
+
+    assert "⚠️" not in result["reply_to_owner"]
+
+
 OWNER, ENGINEER = "1386120774", "555"
 
 

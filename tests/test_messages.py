@@ -38,6 +38,15 @@ def test_approval_request_includes_price_warning():
     assert msg.endswith("موافق ولا مرفوض؟")
 
 
+def test_price_warning_per_unit_names_the_unit():
+    anomaly = {"is_anomaly": True, "average_price": 15000.0, "deviation_pct": 20.0, "compared_count": 3,
+               "basis": "unit_price", "unit": "ton"}
+
+    msg = owner_approval_request(_steel(), None, anomaly)
+
+    assert "⚠️ سعر الطن أعلى بـ 20% من متوسط آخر 3 مرات (15,000 جنيه للطن)." in msg
+
+
 def test_approval_request_includes_duplicate_warning():
     earlier = _steel(id=6, invoice_number="SC-1140", date="2026-09-10", status="approved")
 

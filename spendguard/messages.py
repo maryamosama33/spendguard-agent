@@ -69,9 +69,17 @@ def _duplicate_warning(duplicate: Expense) -> str:
     return f"⚠️ الفاتورة دي اتقدمت قبل كده: {ref} بتاريخ {duplicate.date} ({status})."
 
 
+UNIT_AR = {"ton": "طن", "kg": "كيلو", "m3": "متر مكعب", "m2": "متر مربع", "meter": "متر",
+           "bag": "شكارة", "trip": "نقلة", "piece": "قطعة", "day": "يوم"}
+
+
 def _price_warning(anomaly: dict) -> str:
-    return (f"⚠️ السعر أعلى بـ {anomaly['deviation_pct']:g}% من متوسط آخر "
-            f"{min(anomaly['compared_count'], 3)} مرات ({_money(anomaly['average_price'])}).")
+    times = min(anomaly["compared_count"], 3)
+    pct, average = f"{anomaly['deviation_pct']:g}%", _money(anomaly["average_price"])
+    if anomaly.get("basis") == "unit_price":
+        unit = UNIT_AR.get((anomaly.get("unit") or "").lower(), "وحدة")
+        return f"⚠️ سعر ال{unit} أعلى بـ {pct} من متوسط آخر {times} مرات ({average} لل{unit})."
+    return f"⚠️ السعر أعلى بـ {pct} من متوسط آخر {times} مرات ({average})."
 
 
 def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly: dict,

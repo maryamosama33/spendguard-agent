@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from spendguard.models import Expense
 
 
@@ -46,9 +48,29 @@ def _matching_history(candidate: Expense, history: list[Expense]) -> list[Expens
     return [e for e in history if e.amount is not None and _same_supplier_item(candidate, e)]
 
 
-def _recent_average(records: list[Expense], window: int) -> float:
+def unit_price(expense: Expense) -> float | None:
+    if expense.amount is None or not expense.quantity:
+        return None
+    return expense.amount / expense.quantity
+
+
+def _same_unit(a: Expense, b: Expense) -> bool:
+    return (a.unit or "").strip().lower() == (b.unit or "").strip().lower()
+
+
+def _comparable(candidate: Expense, matches: list[Expense]) -> tuple[str, Callable[[Expense], float], list[Expense]]:
+    """Compare price per unit when both sides have a quantity in the same unit
+    (2 tons is not "100% more expensive" than 1 ton); else the invoice totals."""
+    if unit_price(candidate) is not None:
+        per_unit = [e for e in matches if unit_price(e) is not None and _same_unit(candidate, e)]
+        if per_unit:
+            return "unit_price", unit_price, per_unit
+    return "total", lambda e: e.amount, matches
+
+
+def _recent_average(records: list[Expense], price: Callable[[Expense], float], window: int) -> float:
     recent = sorted(records, key=lambda e: e.date or "", reverse=True)[:window]
-    return sum(e.amount for e in recent) / len(recent)
+    return sum(price(e) for e in recent) / len(recent)
 
 
 def check_price_anomaly(
@@ -57,7 +79,8 @@ def check_price_anomaly(
     threshold: float = PRICE_ANOMALY_THRESHOLD,
     window: int = RECENT_PURCHASES_WINDOW,
 ) -> dict:
-    """Flag if candidate's price is abnormally high vs. recent same-supplier-item history."""
+    """Flag if candidate's price is abnormally high vs. recent same-supplier-item history.
+    "basis" says what was compared: "unit_price" or "total"."""
     matches = _matching_history(candidate, history)
     if not matches or candidate.amount is None:
         return {
@@ -65,14 +88,19 @@ def check_price_anomaly(
             "average_price": None,
             "deviation_pct": None,
             "compared_count": len(matches),
+            "basis": None,
+            "unit": None,
         }
 
-    average = _recent_average(matches, window)
-    deviation_pct = (candidate.amount - average) / average if average else 0.0
+    basis, price, compared = _comparable(candidate, matches)
+    average = _recent_average(compared, price, window)
+    deviation_pct = (price(candidate) - average) / average if average else 0.0
 
     return {
         "is_anomaly": deviation_pct > threshold,
         "average_price": round(average, 2),
         "deviation_pct": round(deviation_pct * 100, 1),
-        "compared_count": len(matches),
+        "compared_count": len(compared),
+        "basis": basis,
+        "unit": candidate.unit if basis == "unit_price" else None,
     }

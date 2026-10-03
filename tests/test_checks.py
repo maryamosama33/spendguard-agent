@@ -121,6 +121,41 @@ def test_price_anomaly_ignores_different_item_or_supplier():
     assert result["is_anomaly"] is False
 
 
+def _tons(amount: float, quantity: float, date: str = "2026-09-30", unit: str = "ton") -> Expense:
+    return _expense(amount=amount, quantity=quantity, unit=unit, date=date, item="steel")
+
+
+STEEL_HISTORY = [_tons(15000.0, 1, "2026-09-01"), _tons(30000.0, 2, "2026-09-10"), _tons(15000.0, 1, "2026-09-20")]
+
+
+def test_bigger_order_at_same_unit_price_is_not_anomalous():
+    result = check_price_anomaly(_tons(45000.0, 3), STEEL_HISTORY)
+
+    assert result["is_anomaly"] is False
+    assert (result["basis"], result["unit"], result["average_price"]) == ("unit_price", "ton", 15000.0)
+
+
+def test_small_overpriced_order_is_caught_per_unit():
+    # Half a ton for 9,000: a smaller total than any past invoice, but 20% more per ton.
+    result = check_price_anomaly(_tons(9000.0, 0.5), STEEL_HISTORY)
+
+    assert result["is_anomaly"] is True
+    assert result["deviation_pct"] == 20.0
+
+
+def test_without_quantity_falls_back_to_totals():
+    result = check_price_anomaly(_expense(amount=18000.0, item="steel"), STEEL_HISTORY)
+
+    assert result["basis"] == "total"
+    assert result["average_price"] == 20000.0
+
+
+def test_different_unit_falls_back_to_totals():
+    result = check_price_anomaly(_tons(18000.0, 18000, unit="kg"), STEEL_HISTORY)
+
+    assert result["basis"] == "total"
+
+
 def test_price_anomaly_no_history_is_not_anomalous():
     candidate = _expense(amount=5000.0, item="steel")
 

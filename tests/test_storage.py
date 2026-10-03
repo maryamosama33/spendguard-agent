@@ -102,6 +102,23 @@ def test_update_status_to_rejected_records_reason(conn):
     assert expense.rejection_reason == "duplicate"
 
 
+def test_init_db_adds_quantity_and_unit_to_an_older_database():
+    old = sqlite3.connect(":memory:")
+    old.row_factory = sqlite3.Row
+    old.execute("CREATE TABLE expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, amount REAL, "
+                "currency TEXT, supplier TEXT, project TEXT, cost_item TEXT, item TEXT, requester TEXT, "
+                "invoice_number TEXT, confidence REAL, missing_fields TEXT, source_channel TEXT, "
+                "sender TEXT, source_file TEXT, status TEXT NOT NULL DEFAULT 'pending', rejection_reason TEXT)")
+
+    init_db(old)
+    init_db(old)  # idempotent
+    expense_id = insert_expense(old, Expense(amount=30000.0, quantity=2, unit="ton"))
+
+    saved = get_expense(old, expense_id)
+    assert (saved.quantity, saved.unit) == (2.0, "ton")
+    old.close()
+
+
 def test_append_to_sheet_skipped_without_sheets_config(monkeypatch):
     monkeypatch.delenv("GOOGLE_SHEET_ID", raising=False)
 

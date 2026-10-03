@@ -26,6 +26,10 @@ Extract these fields:
 - item (the specific thing paid for, e.g. "steel rebar 12mm", "sand",
   "cement"; use a short normalized name so the same item is named
   consistently across purchases)
+- quantity (how many units of the item were bought, e.g. 2 for "2 طن" or
+  "نقلتين"; null if not stated)
+- unit (one of: ton, kg, m3, m2, meter, bag, trip, piece, day; null if not
+  stated). "طن" = ton, "شكارة" = bag, "نقلة" = trip, "م3"/"متر مكعب" = m3
 - requester (who is submitting/requesting this expense)
 - invoice_number (if present)
 

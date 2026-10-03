@@ -16,12 +16,14 @@ hackathon.
 
 | Document | What SpendGuard does |
 |---|---|
-| `steel_invoice_overpriced.pdf` | ⚠️ Price is 20% above the average of the last 3 purchases → owner decides |
+| `steel_invoice_overpriced.pdf` | ⚠️ Price per ton is 20% above the average of the last 3 purchases → owner decides |
 | `sand_transport_form.png` (handwritten) | Reads the handwriting, asks the sender which project it is for |
 | `cement_invoice_resubmitted.png` | ⚠️ Invoice SC-1140 was already submitted (now sent by someone else) |
 | `blurry_receipt.png` | Asks for a clearer photo instead of guessing the numbers |
 | Voice note: "I paid 3000 EGP for sand transport…" | Transcribes it, asks for the date and name, ⚠️ +264% over the usual price |
 
+Prices are compared per unit (ton, trip, bag…), so a bigger order at the usual
+price isn't flagged; without a quantity, invoice totals are compared.
 Only the owner can approve or reject. Every reply is ready-made Egyptian Arabic.
 
 ## Quick start (about 5 minutes)
