@@ -1,4 +1,4 @@
-from spendguard.checks import check_price_anomaly, find_duplicate
+from spendguard.checks import check_price_anomaly, find_duplicate, find_resubmission
 from spendguard.models import Expense
 
 
@@ -83,6 +83,15 @@ def test_saved_expense_still_matches_a_different_row():
     existing = [_expense(id=37), _expense(id=6)]
 
     assert find_duplicate(candidate, existing).id == 6
+
+
+def test_resubmission_is_same_sender_same_request_still_pending():
+    pending = [_expense(id=5, sender="555", status="pending")]
+
+    assert find_resubmission(_expense(sender="555"), pending).id == 5
+    assert find_resubmission(_expense(sender="777"), pending) is None  # someone else: a duplicate
+    assert find_resubmission(_expense(sender="555", amount=1.0), pending) is None
+    assert find_resubmission(_expense(sender="555"), [_expense(id=5, sender="555", status="approved")]) is None
 
 
 def _history_entry(amount: float, date: str, item: str = "steel", supplier: str = "Al-Nasr Sand Co") -> Expense:

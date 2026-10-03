@@ -270,12 +270,31 @@ def test_unclear_decision_asks_owner_again(seeded_db):
     assert f"«ارفض {saved['id']}»" in result["reply"]
 
 
-def test_save_expense_reply_warns_on_resubmitted_invoice(seeded_db):
-    server.save_expense(STEEL)
+def test_save_expense_reply_warns_on_invoice_resubmitted_by_someone_else(seeded_db):
+    server.save_expense(STEEL | {"sender": "201001112222"})
 
-    result = server.save_expense(STEEL)
+    result = server.save_expense(STEEL | {"sender": "201003334444", "requester": "أحمد علي"})
 
     assert "⚠️ الفاتورة دي اتقدمت قبل كده: NSF-2241" in result["reply_to_owner"]
+
+
+def test_retried_save_reuses_the_pending_row_without_a_duplicate_warning(seeded_db):
+    first = server.save_expense(STEEL)
+
+    retry = server.save_expense(STEEL)
+
+    assert retry["id"] == first["id"] and retry["already_saved"] is True
+    assert "اتقدمت قبل كده" not in retry["reply_to_owner"]
+    assert len(storage.list_expenses(storage.get_connection(), statuses=["pending"])) == 1
+
+
+def test_retried_engineer_save_does_not_message_owner_twice(seeded_db, telegram):
+    server.save_expense(STEEL, telegram_sender=ENGINEER)
+
+    retry = server.save_expense(STEEL, telegram_sender=ENGINEER)
+
+    assert len(telegram["owners"]) == 1
+    assert "اتبعت لصاحب الشركة" in retry["reply_to_sender"]
 
 
 def _api_error(code: int) -> genai_errors.APIError:

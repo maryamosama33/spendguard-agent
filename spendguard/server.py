@@ -8,7 +8,7 @@ from google.genai import errors as genai_errors
 from mcp.server.mcpserver import MCPServer
 
 from spendguard.checks import check_price_anomaly as _check_price_anomaly
-from spendguard.checks import find_duplicate
+from spendguard.checks import find_duplicate, find_resubmission
 from spendguard.decision import owner_decision
 from spendguard.extraction import extract_expense as _extract_expense
 from spendguard.extraction import extract_expense_from_text as _extract_expense_from_text
@@ -247,28 +247,54 @@ def save_expense(expense: dict, telegram_sender: str = "") -> dict:
     candidate.source_file = archive_document(candidate.source_file)
     if telegram_sender:  # the verified ID, so the decision can be sent back to them
         candidate.source_channel, candidate.sender = "telegram", telegram_sender
+    if earlier := _pending_resubmission(candidate):
+        candidate.id = earlier.id
+        return _saved_result(candidate, telegram_sender, forward=False) | {"already_saved": True}
     conn = get_connection()
     try:
         init_db(conn)
         candidate.id = insert_expense(conn, candidate)
     finally:
         conn.close()
+    return _saved_result(candidate, telegram_sender, forward=True)
 
+
+def _pending_resubmission(candidate: Expense) -> Expense | None:
+    conn = get_connection()
+    try:
+        init_db(conn)
+        pending = list_expenses(conn, statuses=["pending"])
+    finally:
+        conn.close()
+    return find_resubmission(candidate, pending)
+
+
+def _saved_result(candidate: Expense, telegram_sender: str, forward: bool) -> dict:
+    """The saved expense plus the reply. A retried save (forward=False) doesn't
+    message the owner a second time."""
     duplicate = _find_duplicate_in_db(candidate)
     anomaly = _price_check_in_db(candidate)
+    if forward:
+        with_owner = _forwarded_to_owner(candidate, duplicate, anomaly, telegram_sender)
+    else:
+        with_owner = _is_engineer_on_telegram(telegram_sender)  # the first save sent it
     result = candidate.model_dump()
-    if _forwarded_to_owner(candidate, duplicate, anomaly, telegram_sender):
+    if with_owner:
         result["reply_to_sender"] = sent_to_owner_message(candidate)
     else:
         result["reply_to_owner"] = owner_approval_request(candidate, duplicate, anomaly)
     return result
 
 
+def _is_engineer_on_telegram(telegram_sender: str) -> bool:
+    return bool(telegram_sender) and not notify.is_owner(telegram_sender) and notify.telegram_configured()
+
+
 def _forwarded_to_owner(candidate: Expense, duplicate: Expense | None, anomaly: dict,
                         telegram_sender: str) -> bool:
     """Send an engineer's request to the owner's own Telegram chat (F14). The
     owner's own requests, and terminal/email ones, are answered in place."""
-    if not telegram_sender or notify.is_owner(telegram_sender) or not notify.telegram_configured():
+    if not _is_engineer_on_telegram(telegram_sender):
         return False
     text = forwarded_owner_request(candidate, duplicate, anomaly)
     return notify.send_to_owners(text, candidate.source_file)

@@ -47,6 +47,18 @@ def find_duplicate(candidate: Expense, existing: list[Expense]) -> Expense | Non
     return None
 
 
+def _same_submission(a: Expense, b: Expense) -> bool:
+    return (a.sender == b.sender and invoice_key(a.invoice_number) == invoice_key(b.invoice_number)
+            and (a.supplier, a.amount, a.date, a.item, a.project)
+            == (b.supplier, b.amount, b.date, b.item, b.project))
+
+
+def find_resubmission(candidate: Expense, pending: list[Expense]) -> Expense | None:
+    """The same sender's identical request already pending: the agent retried
+    save_expense, so reuse that row instead of saving (and flagging) a copy."""
+    return next((p for p in pending if p.status == "pending" and _same_submission(candidate, p)), None)
+
+
 PRICE_ANOMALY_THRESHOLD = 0.15
 RECENT_PURCHASES_WINDOW = 3
 
