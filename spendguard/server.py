@@ -23,6 +23,7 @@ from spendguard.messages import (
     already_decided_message,
     approved_message,
     budget_message,
+    expense_history_message,
     forwarded_owner_request,
     learning_message,
     missing_fields_question,
@@ -50,6 +51,7 @@ from spendguard.storage import (
     list_expenses,
     list_item_names,
     list_known_values,
+    now,
     update_status,
 )
 
@@ -296,6 +298,7 @@ def save_expense(expense: dict, telegram_sender: str = "") -> dict:
     if candidate.missing_fields:
         return _not_saved_missing_fields(candidate)
     candidate.status = "pending"
+    candidate.created_at = now()
     candidate.source_file = archive_document(candidate.source_file)
     if telegram_sender:  # the verified ID, so the decision can be sent back to them
         candidate.source_channel, candidate.sender = "telegram", telegram_sender
@@ -484,15 +487,21 @@ def approve_expense(expense_id: int | None = None, owner_message: str = "",
         return refusal
     conn = get_connection()
     try:
-        update_status(conn, expense_id, "approved")
+        expense.decided_at = update_status(conn, expense_id, "approved", decided_by=_decider(telegram_sender))
     finally:
         conn.close()
 
-    expense.status = "approved"
+    expense.status, expense.decided_by = "approved", _decider(telegram_sender)
     synced = append_to_sheet(expense)
     return expense.model_dump() | {"sheet_synced": synced,
                                    "reply": _with_note(approved_message(expense, synced), expense),
                                    "requester_notified": _notify_requester(expense, telegram_sender)}
+
+
+def _decider(telegram_sender: str) -> str:
+    """Who decided, for the audit trail: the plugin only lets owners decide, so
+    this is the owner's verified Telegram ID, or "owner" in the terminal/email."""
+    return telegram_sender or "owner"
 
 
 def _with_note(reply: str, expense: Expense) -> str:
@@ -525,11 +534,12 @@ def reject_expense(expense_id: int | None = None, reason: str = "", owner_messag
         return refusal
     conn = get_connection()
     try:
-        update_status(conn, expense_id, "rejected", rejection_reason=reason)
+        expense.decided_at = update_status(conn, expense_id, "rejected", rejection_reason=reason,
+                                           decided_by=_decider(telegram_sender))
     finally:
         conn.close()
 
-    expense.status = "rejected"
+    expense.status, expense.decided_by = "rejected", _decider(telegram_sender)
     expense.rejection_reason = reason
     return expense.model_dump() | {"reply": _with_note(rejected_message(expense), expense),
                                    "requester_notified": _notify_requester(expense, telegram_sender)}
@@ -626,6 +636,21 @@ def budget_report(project: str = "") -> dict:
 def _budget_statuses(budgets: dict[str, float]) -> list[dict]:
     approved = _approved_expenses()
     return [budget_status(p, amount, project_spend(p, approved)) for p, amount in budgets.items()]
+
+
+
+@mcp.tool()
+def expense_history(expense_id: int) -> dict:
+    """Audit trail of one request: who sent it, when, on which channel, and
+    who approved or rejected it when. Use for "مين وافق على طلب 12؟" or
+    "طلب 12 حصله إيه؟". Send the result's "reply".
+
+    Args:
+        expense_id: the request number.
+    """
+    expense = _load_expense(expense_id)
+    record = expense.model_dump() if expense else {"error": "No such expense id."}
+    return record | {"reply": expense_history_message(expense, expense_id)}
 
 
 if __name__ == "__main__":

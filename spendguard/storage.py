@@ -1,6 +1,6 @@
 import hashlib
 import os
-from datetime import date
+from datetime import datetime
 import shutil
 import sqlite3
 from pathlib import Path
@@ -39,7 +39,9 @@ CREATE TABLE IF NOT EXISTS expenses (
     rejection_reason TEXT,
     price_deviation_pct REAL,
     duplicate_of INTEGER,
-    decided_at TEXT
+    decided_at TEXT,
+    created_at TEXT,
+    decided_by TEXT
 );
 """
 
@@ -47,11 +49,13 @@ SHEET_COLUMNS = [
     "id", "date", "amount", "currency", "supplier", "project", "cost_item",
     "item", "requester", "invoice_number", "source_channel", "sender",
     "source_file", "status", "quantity", "unit",  # appended last: existing sheets keep their layout
+    "created_at", "decided_by", "decided_at",
 ]
 
 # Columns added after the first release; init_db adds them to older databases.
 ADDED_COLUMNS = {"quantity": "REAL", "unit": "TEXT", "price_deviation_pct": "REAL",
-                 "duplicate_of": "INTEGER", "decided_at": "TEXT"}
+                 "duplicate_of": "INTEGER", "decided_at": "TEXT", "created_at": "TEXT",
+                 "decided_by": "TEXT"}
 
 
 def get_connection() -> sqlite3.Connection:
@@ -78,6 +82,11 @@ def _row_to_expense(row: sqlite3.Row) -> Expense:
     data = dict(row)
     data["missing_fields"] = data["missing_fields"].split(",") if data["missing_fields"] else []
     return Expense(**data)
+
+
+def now() -> str:
+    """Audit-trail timestamp, local time to the minute."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 def insert_expense(conn: sqlite3.Connection, expense: Expense) -> int:
@@ -148,12 +157,16 @@ def update_status(
     expense_id: int,
     status: str,
     rejection_reason: str | None = None,
-) -> None:
+    decided_by: str | None = None,
+) -> str:
+    """Record the owner's decision; returns its timestamp."""
+    decided_at = now()
     conn.execute(
-        "UPDATE expenses SET status = ?, rejection_reason = ?, decided_at = ? WHERE id = ?",
-        (status, rejection_reason, date.today().isoformat(), expense_id),
+        "UPDATE expenses SET status = ?, rejection_reason = ?, decided_at = ?, decided_by = ? WHERE id = ?",
+        (status, rejection_reason, decided_at, decided_by, expense_id),
     )
     conn.commit()
+    return decided_at
 
 
 def _in_hermes_media_cache(path: Path) -> bool:

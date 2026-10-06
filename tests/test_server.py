@@ -324,6 +324,18 @@ def test_budget_report_all_projects_and_unknown_project(seeded_db):
     assert server.budget_report("مول العرب")["reply"] == "مفيش ميزانية متسجلة لمشروع مول العرب."
 
 
+def test_expense_history_records_terminal_request_and_owner_decision(seeded_db):
+    with patch("spendguard.server.append_to_sheet", return_value=False):
+        steel = server.save_expense(STEEL)
+        server.reject_expense(steel["id"], "السعر عالي", f"ارفض {steel['id']} السعر عالي")
+
+    history = server.expense_history(steel["id"])
+
+    assert history["created_at"] and history["decided_at"] and history["decided_by"] == "owner"
+    assert "• اترفض من صاحب الشركة في " in history["reply"]
+    assert server.expense_history(999)["reply"] == "مفيش طلب برقم 999."
+
+
 OWNER, ENGINEER = "1386120774", "555"
 
 
@@ -375,6 +387,17 @@ def test_owner_decision_is_sent_back_to_engineer(seeded_db, telegram):
 
     assert result["requester_notified"] is True
     assert telegram["chats"] == [(ENGINEER, f"صاحب الشركة وافق على طلبك رقم {saved['id']} (18,000 جنيه).")]
+
+
+def test_audit_trail_records_engineer_sender_and_owner_who_approved(seeded_db, telegram):
+    saved = server.save_expense(STEEL, telegram_sender=ENGINEER)
+    with patch("spendguard.server.append_to_sheet", return_value=False):
+        server.approve_expense(saved["id"], f"موافق {saved['id']}", telegram_sender=OWNER)
+
+    reply = server.expense_history(saved["id"])["reply"]
+
+    assert "عن طريق تليجرام (555)" in reply
+    assert f"• اتعتمد من صاحب الشركة (تليجرام {OWNER}) في " in reply
 
 
 def test_decision_without_number_refused_when_several_pending(seeded_db):

@@ -37,7 +37,7 @@
 - F13 Monthly savings report — total value of price discrepancies/duplicates caught per month (built, branch phase-2).
 - F15 Amount-based approval routing.
 - F16 Pending-approval reminders.
-- F17 Audit trail (who requested/approved/when).
+- F17 Audit trail (who requested/approved/when) (built, branch phase-2): `expense_history`; created_at, decided_by, decided_at on every expense.
 - F18 Budget vs. actual tracking (built, branch phase-2): `budget_report`, budgets in data/seed/budgets.json.
 - F19 Budget threshold alerts (built, branch phase-2): the approval request warns at 80% of the project budget and when it would go over.
 - F20 Invoice-request reconciliation matching.

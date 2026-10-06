@@ -223,6 +223,48 @@ def budget_message(statuses: list[dict], unknown_project: str | None = None) -> 
     return "\n".join(_budget_line(s) for s in statuses)
 
 
+CHANNEL_AR = {"telegram": "تليجرام", "email": "الإيميل", "whatsapp": "واتساب"}
+
+
+def _submitted_line(expense: Expense) -> str:
+    parts = ["• اتقدم"]
+    if expense.created_at:
+        parts.append(f"في {expense.created_at}")
+    if expense.requester:
+        parts.append(f"من {expense.requester}")
+    if expense.source_channel:
+        sender = f" ({expense.sender})" if expense.sender else ""
+        parts.append(f"عن طريق {CHANNEL_AR.get(expense.source_channel, expense.source_channel)}{sender}")
+    return " ".join(parts) + "."
+
+
+def _decider_ar(decided_by: str | None) -> str:
+    if decided_by and decided_by.isdigit():
+        return f"صاحب الشركة (تليجرام {decided_by})"
+    return "صاحب الشركة"
+
+
+def _decision_line(expense: Expense) -> str:
+    when = f" في {expense.decided_at}" if expense.decided_at else ""
+    if expense.status == "approved":
+        return f"• اتعتمد من {_decider_ar(expense.decided_by)}{when}."
+    if expense.status == "rejected":
+        return f"• اترفض من {_decider_ar(expense.decided_by)}{when}. السبب: {expense.rejection_reason}"
+    return "• لسه مستني موافقة صاحب الشركة."
+
+
+def expense_history_message(expense: Expense | None, expense_id: int) -> str:
+    """Who requested an expense, who decided, and when (F17)."""
+    if expense is None:
+        return f"مفيش طلب برقم {expense_id}."
+    project = f" لمشروع {expense.project}" if expense.project else ""
+    lines = [f"🧾 طلب رقم {expense.id}: {_what(expense)}{project}.", _submitted_line(expense)]
+    if expense.duplicate_of is not None:
+        lines.append(f"• ⚠️ كان مكرر من طلب رقم {expense.duplicate_of}.")
+    lines.append(_decision_line(expense))
+    return "\n".join(lines)
+
+
 def no_pending_message() -> str:
     return "مفيش طلبات مستنية موافقتك دلوقتي."
 

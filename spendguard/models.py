@@ -30,5 +30,7 @@ class Expense(ExtractedFields):
     rejection_reason: str | None = None
     price_deviation_pct: float | None = None  # vs recent purchases when saved; for learning
     duplicate_of: int | None = None  # id of the earlier expense it repeated, when saved
-    decided_at: str | None = None  # ISO date the owner approved/rejected it
+    created_at: str | None = None  # "YYYY-MM-DD HH:MM" it was submitted (audit trail)
+    decided_at: str | None = None  # "YYYY-MM-DD HH:MM" the owner approved/rejected it
+    decided_by: str | None = None  # the owner's Telegram ID, or "owner" outside Telegram
     id: int | None = None

@@ -66,6 +66,11 @@ Villas will have spent 87% of its budget (65,470 of EGP 75,000), EGP 9,530
 left." The owner can ask "How much is left in the budget?" for one project
 or all of them. Spend counts approved expenses only.
 
+**Audit trail.** Every request records when it arrived, who sent it and on
+which channel, and who approved or rejected it and when (the owner's verified
+Telegram ID). Ask "Who approved request 12?" to get the full history; the
+Sheets row carries the same timestamps.
+
 **Learns from the owner's decisions.** The price baseline already follows
 approved prices. On top of that, SpendGuard learns how strict the owner is
 about each item, and tells them what it learned:
@@ -165,10 +170,10 @@ flowchart LR
   voice notes (Groq Whisper, Arabic) and calls SpendGuard's tools. Its config,
   persona (`hermes/SOUL.md`) and guardrails plugin ship as a Hermes profile in
   `hermes/`, installed by `scripts/spendguard.py setup`.
-- **SpendGuard** (`spendguard/`) is a Python MCP server with 10 tools:
+- **SpendGuard** (`spendguard/`) is a Python MCP server with 11 tools:
   `extract_expense`, `extract_expense_from_text`, `check_duplicate`,
   `check_price_anomaly`, `save_expense`, `approve_expense`, `reject_expense`,
-  `query_expenses`, `savings_report`, `budget_report`.
+  `query_expenses`, `savings_report`, `budget_report`, `expense_history`.
 
 ## Built-in safeguards
 
