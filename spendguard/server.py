@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from google.genai import errors as genai_errors
 from mcp.server.mcpserver import MCPServer
 
+from spendguard.budget import budget_alert, budget_status, load_budgets, project_spend
 from spendguard.checks import check_price_anomaly as _check_price_anomaly
 from spendguard.checks import cheaper_supplier, find_duplicate, find_resubmission
 from spendguard.decision import owner_decision
@@ -21,6 +22,7 @@ from spendguard import notify
 from spendguard.messages import (
     already_decided_message,
     approved_message,
+    budget_message,
     forwarded_owner_request,
     learning_message,
     missing_fields_question,
@@ -203,7 +205,7 @@ def check_price_anomaly(expense: dict) -> dict:
 
 def _known_projects(conn) -> list[str]:
     seeded = json.loads(PROJECTS_FILE.read_text(encoding="utf-8")) if PROJECTS_FILE.exists() else []
-    return sorted(set(seeded) | set(list_known_values(conn, "project")))
+    return sorted(set(seeded) | set(load_budgets()) | set(list_known_values(conn, "project")))
 
 
 def _normalized(expense: dict) -> Expense:
@@ -329,18 +331,33 @@ def _saved_result(candidate: Expense, telegram_sender: str, forward: bool) -> di
     message the owner a second time."""
     duplicate = _find_duplicate_in_db(candidate)
     anomaly = _price_check_in_db(candidate)
+    budget = _budget_alert_in_db(candidate)
     if forward:
-        with_owner = _forwarded_to_owner(candidate, duplicate, anomaly, telegram_sender)
+        with_owner = _forwarded_to_owner(candidate, duplicate, anomaly, budget, telegram_sender)
     else:
         with_owner = _is_engineer_on_telegram(telegram_sender)  # the first save sent it
-    result = candidate.model_dump()
+    result = candidate.model_dump() | {"budget_alert": budget}
     if with_owner:
         result["reply_to_sender"] = sent_to_owner_message(candidate)
     else:
         # MEDIA: tags only mean something to the Telegram gateway; the terminal would print them.
         source = "attach" if telegram_sender else "note"
-        result["reply_to_owner"] = owner_approval_request(candidate, duplicate, anomaly, source)
+        result["reply_to_owner"] = owner_approval_request(candidate, duplicate, anomaly, source, budget)
     return result
+
+
+def _approved_expenses() -> list[Expense]:
+    conn = get_connection()
+    try:
+        init_db(conn)
+        return list_expenses(conn, statuses=["approved"])
+    finally:
+        conn.close()
+
+
+def _budget_alert_in_db(candidate: Expense) -> dict | None:
+    """The project's budget warning if approving this request reaches 80% or more (F19)."""
+    return budget_alert(candidate, load_budgets(), _approved_expenses())
 
 
 def _is_engineer_on_telegram(telegram_sender: str) -> bool:
@@ -348,12 +365,12 @@ def _is_engineer_on_telegram(telegram_sender: str) -> bool:
 
 
 def _forwarded_to_owner(candidate: Expense, duplicate: Expense | None, anomaly: dict,
-                        telegram_sender: str) -> bool:
+                        budget: dict | None, telegram_sender: str) -> bool:
     """Send an engineer's request to the owner's own Telegram chat (F14). The
     owner's own requests, and terminal/email ones, are answered in place."""
     if not _is_engineer_on_telegram(telegram_sender):
         return False
-    text = forwarded_owner_request(candidate, duplicate, anomaly)
+    text = forwarded_owner_request(candidate, duplicate, anomaly, budget)
     return notify.send_to_owners(text, candidate.source_file)
 
 
@@ -585,6 +602,30 @@ def savings_report(month: str = "") -> dict:
         conn.close()
     summary = savings_summary(rejected, month)
     return summary | {"reply": savings_message(summary)}
+
+
+
+@mcp.tool()
+def budget_report(project: str = "") -> dict:
+    """Budget vs. actual (approved) spend per project. Use for "فاضل كام في
+    ميزانية مشروع كذا؟" or "الميزانيات عاملة إيه؟". Send the result's "reply".
+
+    Args:
+        project: the project asked about; empty means all projects.
+    """
+    budgets = load_budgets()
+    if project:
+        name = resolve_name(project, budgets)
+        if name not in budgets:
+            return {"projects": [], "reply": budget_message([], unknown_project=project)}
+        budgets = {name: budgets[name]}
+    statuses = _budget_statuses(budgets)
+    return {"projects": statuses, "reply": budget_message(statuses)}
+
+
+def _budget_statuses(budgets: dict[str, float]) -> list[dict]:
+    approved = _approved_expenses()
+    return [budget_status(p, amount, project_spend(p, approved)) for p, amount in budgets.items()]
 
 
 if __name__ == "__main__":

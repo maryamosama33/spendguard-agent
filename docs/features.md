@@ -38,8 +38,8 @@
 - F15 Amount-based approval routing.
 - F16 Pending-approval reminders.
 - F17 Audit trail (who requested/approved/when).
-- F18 Budget vs. actual tracking.
-- F19 Budget threshold alerts.
+- F18 Budget vs. actual tracking (built, branch phase-2): `budget_report`, budgets in data/seed/budgets.json.
+- F19 Budget threshold alerts (built, branch phase-2): the approval request warns at 80% of the project budget and when it would go over.
 - F20 Invoice-request reconciliation matching.
 - F21 Proactive payment reminders.
 - F22 Cash-flow forecast.

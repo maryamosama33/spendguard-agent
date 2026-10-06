@@ -35,7 +35,7 @@ Demo documents are in `data/seed/invoices/`.
 
 | Document                                          | What SpendGuard does                                                                                       |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `steel_invoice_overpriced.pdf`                    | ⚠️ Price per ton is 20% above the last 3 purchases; 💡 suggests a supplier 15% cheaper. The owner decides. |
+| `steel_invoice_overpriced.pdf`                    | ⚠️ Price per ton is 20% above the last 3 purchases; 💡 suggests a supplier 15% cheaper; 📊 the project would reach 87% of its budget. The owner decides. |
 | `sand_transport_form.png` (handwritten)           | Reads the handwriting and asks the sender which project it is for                                          |
 | `cement_invoice_resubmitted.png`                  | ⚠️ Invoice SC-1140 was already submitted (now sent by someone else)                                        |
 | `blurry_receipt.png`                              | Asks for a clearer photo instead of guessing the numbers                                                   |
@@ -58,6 +58,13 @@ rejected overpriced request counts only the overcharge (18,000 at +20% saved
 3,000). Example reply: "In October 2026 SpendGuard saved you EGP 4,220: one
 duplicate invoice rejected (EGP 1,220) and one price increase rejected
 (EGP 3,000 overcharge)."
+
+**Project budgets.** Each project's budget is in `data/seed/budgets.json`.
+When approving a request would take its project to 80% of the budget or past
+it, the approval request says so, e.g. "If you approve, Fifth Settlement
+Villas will have spent 87% of its budget (65,470 of EGP 75,000), EGP 9,530
+left." The owner can ask "How much is left in the budget?" for one project
+or all of them. Spend counts approved expenses only.
 
 **Learns from the owner's decisions.** The price baseline already follows
 approved prices. On top of that, SpendGuard learns how strict the owner is
@@ -158,10 +165,10 @@ flowchart LR
   voice notes (Groq Whisper, Arabic) and calls SpendGuard's tools. Its config,
   persona (`hermes/SOUL.md`) and guardrails plugin ship as a Hermes profile in
   `hermes/`, installed by `scripts/spendguard.py setup`.
-- **SpendGuard** (`spendguard/`) is a Python MCP server with 9 tools:
+- **SpendGuard** (`spendguard/`) is a Python MCP server with 10 tools:
   `extract_expense`, `extract_expense_from_text`, `check_duplicate`,
   `check_price_anomaly`, `save_expense`, `approve_expense`, `reject_expense`,
-  `query_expenses`, `savings_report`.
+  `query_expenses`, `savings_report`, `budget_report`.
 
 ## Built-in safeguards
 

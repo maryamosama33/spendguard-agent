@@ -114,8 +114,17 @@ def learning_message(expense: Expense, learning: Learning) -> str:
             f"فمن دلوقتي هنبهك على {item} بس لو الزيادة فوق {limit}.")
 
 
+def _budget_warning(alert: dict) -> str:
+    spent = f"{alert['spent']:,.0f} من {_money(alert['budget'])}"
+    if alert["level"] == "over":
+        return (f"⚠️ لو وافقت، مشروع {alert['project']} هيعدّي ميزانيته بـ {_money(-alert['remaining'])} "
+                f"(هيوصل {spent}).")
+    return (f"📊 لو وافقت، مشروع {alert['project']} هيكون صرف {alert['used_pct']:.0f}% من ميزانيته "
+            f"({spent})، وفاضل {_money(alert['remaining'])}.")
+
+
 def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly: dict,
-                           source: str = "attach") -> str:
+                           source: str = "attach", budget: dict | None = None) -> str:
     """source: "attach" (Telegram: the gateway attaches the file), "note" (the
     terminal: say where it is saved) or "none" (sent separately)."""
     who = f" من {expense.requester}" if expense.requester else ""
@@ -129,6 +138,8 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
         lines.append(_price_warning(anomaly))
     if anomaly.get("cheaper_supplier"):
         lines.append(_cheaper_supplier_line(anomaly["cheaper_supplier"]))
+    if budget:
+        lines.append(_budget_warning(budget))
     if expense.source_file and source == "attach":
         lines.append(_source_document_line(expense.source_file))
     elif expense.source_file and source == "note":
@@ -137,11 +148,12 @@ def owner_approval_request(expense: Expense, duplicate: Expense | None, anomaly:
     return "\n".join(lines)
 
 
-def forwarded_owner_request(expense: Expense, duplicate: Expense | None, anomaly: dict) -> str:
+def forwarded_owner_request(expense: Expense, duplicate: Expense | None, anomaly: dict,
+                            budget: dict | None = None) -> str:
     """The approval request pushed to the owner's own chat, without the file
     line (the file is attached to the message itself). A bare "موافق" is
     enough: the decision tools find the request (and ask if several wait)."""
-    return owner_approval_request(expense, duplicate, anomaly, source="none")
+    return owner_approval_request(expense, duplicate, anomaly, source="none", budget=budget)
 
 
 def sent_to_owner_message(expense: Expense) -> str:
@@ -192,6 +204,23 @@ def savings_message(summary: dict) -> str:
                         "زيادة في الأسعار")
         parts.append(f"{what} اترفضت ({_money(overpricing['amount'])} فرق سعر)")
     return f"💰 في {month} SpendGuard وفّرلك {_money(summary['total_saved'])}: " + " و".join(parts) + "."
+
+
+def _budget_line(status: dict) -> str:
+    line = (f"📊 مشروع {status['project']}: صرفنا {status['spent']:,.0f} من {_money(status['budget'])} "
+            f"({status['used_pct']:.0f}%)")
+    if status["remaining"] < 0:
+        return line + f"، وعدّينا الميزانية بـ {_money(-status['remaining'])}."
+    return line + f"، وفاضل {_money(status['remaining'])}."
+
+
+def budget_message(statuses: list[dict], unknown_project: str | None = None) -> str:
+    """Budget vs. actual, one line per project (F18)."""
+    if unknown_project:
+        return f"مفيش ميزانية متسجلة لمشروع {unknown_project}."
+    if not statuses:
+        return "مفيش ميزانيات مشاريع متسجلة."
+    return "\n".join(_budget_line(s) for s in statuses)
 
 
 def no_pending_message() -> str:

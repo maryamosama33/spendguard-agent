@@ -225,7 +225,7 @@ def test_overpriced_steel_request_suggests_the_cheaper_seeded_supplier(seeded_db
 def test_two_tons_at_the_usual_price_raise_no_warning(seeded_db):
     result = server.save_expense(STEEL | {"quantity": 2, "unit": "ton", "amount": 30000.0})
 
-    assert "⚠️" not in result["reply_to_owner"]
+    assert "أعلى بـ" not in result["reply_to_owner"]  # no price warning (the budget one is fine)
 
 
 def test_query_with_short_project_name_finds_its_spending(seeded_db):
@@ -298,6 +298,30 @@ def test_savings_report_after_rejecting_a_duplicate_and_an_overprice(seeded_db):
 
 def test_savings_report_for_a_month_without_rejections(seeded_db):
     assert server.savings_report("2026-01")["reply"] == "لسه مفيش توفير متسجل في يناير 2026."
+
+
+def test_seeded_steel_request_warns_project_nears_its_budget(seeded_db):
+    result = server.save_expense(STEEL | {"quantity": 1, "unit": "ton"})
+
+    assert result["budget_alert"]["level"] == "near"
+    assert "📊 لو وافقت، مشروع فيلات التجمع الخامس هيكون صرف 87% من ميزانيته" in result["reply_to_owner"]
+
+
+def test_budget_report_counts_approved_spend_once_owner_approves(seeded_db):
+    with patch("spendguard.server.append_to_sheet", return_value=False):
+        steel = server.save_expense(STEEL | {"quantity": 1, "unit": "ton"})
+        before = server.budget_report("التجمع الخامس")["projects"][0]["spent"]
+        server.approve_expense(steel["id"], f"موافق {steel['id']}")
+
+    report = server.budget_report("التجمع الخامس")
+
+    assert (before, report["projects"][0]["spent"]) == (47470.0, 65470.0)
+    assert report["reply"].startswith("📊 مشروع فيلات التجمع الخامس: صرفنا 65,470 من 75,000 جنيه")
+
+
+def test_budget_report_all_projects_and_unknown_project(seeded_db):
+    assert len(server.budget_report()["projects"]) == 3
+    assert server.budget_report("مول العرب")["reply"] == "مفيش ميزانية متسجلة لمشروع مول العرب."
 
 
 OWNER, ENGINEER = "1386120774", "555"
